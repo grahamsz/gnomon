@@ -1,0 +1,15 @@
+.idea/
+.tools/
+.venv/
+.gradle/
+.kotlin/
+.pytest_cache/
+**/build/
+**/bin/
+**/obj/
+**/__pycache__/
+*.pyc
+*.user
+*.pfx
+local.properties
+install.log

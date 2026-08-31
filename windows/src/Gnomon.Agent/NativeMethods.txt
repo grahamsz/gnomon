@@ -1,0 +1,14 @@
+SetWinEventHook
+UnhookWinEvent
+GetWindowThreadProcessId
+GetForegroundWindow
+GetLastInputInfo
+GetTickCount64
+SystemParametersInfo
+WTSGetActiveConsoleSessionId
+WTSQueryUserToken
+DuplicateTokenEx
+CreateEnvironmentBlock
+DestroyEnvironmentBlock
+CreateProcessAsUser
+CloseHandle

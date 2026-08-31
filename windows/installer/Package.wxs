@@ -1,0 +1,54 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+  <Package Name="Gnomon Agent" Manufacturer="Gnomon" Version="$(var.Version)"
+           UpgradeCode="A10D289A-975E-44F1-B662-DF80D9AFCE54"
+           Scope="perMachine" InstallerVersion="500" Compressed="yes">
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Gnomon Agent is already installed."
+                  AllowSameVersionUpgrades="yes" />
+    <MediaTemplate EmbedCab="yes" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLDIR" Name="Gnomon">
+        <Component Id="AgentBinary" Guid="D51CC460-7391-4877-8BA3-694F2CC4B94C" Bitness="always64">
+          <File Id="AgentExe" Source="$(var.AgentPublishDir)\Gnomon.Agent.exe" KeyPath="yes" />
+          <ServiceInstall Id="AgentService" Name="GnomonAgent" DisplayName="Gnomon Screen Time Agent"
+                          Description="Keeps the visible Gnomon session worker running."
+                          Type="ownProcess" Start="auto" ErrorControl="normal" Account="LocalSystem"
+                          Arguments="--service" />
+          <ServiceControl Id="AgentServiceControl" Name="GnomonAgent" Start="install"
+                          Stop="both" Remove="uninstall" Wait="yes" />
+        </Component>
+        <Component Id="RunKey" Guid="0D2387CB-B242-402C-950D-0C95F51ECA60" Bitness="always64">
+          <RegistryValue Root="HKLM" Key="SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
+                         Name="GnomonAgent" Value="&quot;[INSTALLDIR]Gnomon.Agent.exe&quot;"
+                         Type="string" KeyPath="yes" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="CommonAppDataFolder">
+      <Directory Id="DataDir" Name="Gnomon">
+        <Component Id="ConfigData" Guid="F78A7D93-27D0-4D69-AEA8-D0881BC38220" Permanent="yes" NeverOverwrite="yes">
+          <File Id="ConfigFile" Source="config.json" Name="config.json" KeyPath="yes" />
+        </Component>
+        <Directory Id="LogsDir" Name="logs">
+          <Component Id="LogsDirectory" Guid="ACF2B92F-4525-4DFD-A6B4-8FF3E406C034" Permanent="yes">
+            <CreateFolder><util:PermissionEx User="Users" GenericRead="yes" GenericWrite="yes" Delete="yes" /></CreateFolder>
+            <RegistryValue Root="HKLM" Key="SOFTWARE\Gnomon" Name="LogsCreated" Value="1" Type="integer" KeyPath="yes" />
+          </Component>
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+
+    <Feature Id="MainFeature" Title="Gnomon Agent" Level="1">
+      <ComponentRef Id="AgentBinary"/><ComponentRef Id="RunKey"/>
+      <ComponentRef Id="ConfigData"/><ComponentRef Id="LogsDirectory"/>
+    </Feature>
+    <CustomAction Id="ConfigureFailureActions" Directory="System64Folder"
+                  ExeCommand="sc.exe failure GnomonAgent reset= 86400 actions= restart/5000/restart/5000/restart/30000"
+                  Execute="deferred" Impersonate="no" Return="check" />
+    <InstallExecuteSequence>
+      <Custom Action="ConfigureFailureActions" After="StartServices" Condition="NOT REMOVE~=&quot;ALL&quot;" />
+    </InstallExecuteSequence>
+  </Package>
+</Wix>

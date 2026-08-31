@@ -1,0 +1,11 @@
+{
+  "domain": "gnomon",
+  "name": "Gnomon",
+  "codeowners": [],
+  "config_flow": true,
+  "documentation": "https://github.com/example/gnomon",
+  "integration_type": "hub",
+  "iot_class": "calculated",
+  "requirements": [],
+  "version": "1.0.0"
+}

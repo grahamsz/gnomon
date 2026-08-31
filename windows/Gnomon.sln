@@ -1,0 +1,30 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Gnomon.Core", "src\Gnomon.Core\Gnomon.Core.csproj", "{69B5ED51-645D-4C88-8B85-FD08BEEC14D8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Gnomon.Agent", "src\Gnomon.Agent\Gnomon.Agent.csproj", "{5F21F6C4-6F7A-4C51-9467-A4B249992C70}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Gnomon.Core.Tests", "tests\Gnomon.Core.Tests\Gnomon.Core.Tests.csproj", "{DB1E31A9-7B70-4472-B442-94872A1D07E8}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{69B5ED51-645D-4C88-8B85-FD08BEEC14D8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{69B5ED51-645D-4C88-8B85-FD08BEEC14D8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{69B5ED51-645D-4C88-8B85-FD08BEEC14D8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{69B5ED51-645D-4C88-8B85-FD08BEEC14D8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5F21F6C4-6F7A-4C51-9467-A4B249992C70}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5F21F6C4-6F7A-4C51-9467-A4B249992C70}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5F21F6C4-6F7A-4C51-9467-A4B249992C70}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5F21F6C4-6F7A-4C51-9467-A4B249992C70}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DB1E31A9-7B70-4472-B442-94872A1D07E8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DB1E31A9-7B70-4472-B442-94872A1D07E8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DB1E31A9-7B70-4472-B442-94872A1D07E8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DB1E31A9-7B70-4472-B442-94872A1D07E8}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

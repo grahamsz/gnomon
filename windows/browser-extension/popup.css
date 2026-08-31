@@ -1,0 +1,6 @@
+body { font: 13px system-ui, sans-serif; width: 260px; margin: 16px; color: #202124; }
+h1 { font-size: 20px; margin: 0 0 12px; }
+dl { display: grid; grid-template-columns: 100px 1fr; gap: 6px; }
+dt { color: #666; } dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+p { border-top: 1px solid #ddd; padding-top: 10px; color: #666; line-height: 1.35; }
+.ok { color: #16733c; } .bad { color: #b3261e; }

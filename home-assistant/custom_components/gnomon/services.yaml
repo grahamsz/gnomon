@@ -1,0 +1,34 @@
+report_usage:
+  name: Report usage
+  description: Report an integer-minute usage delta from an agent.
+  fields:
+    kid: {required: true, selector: {text: {}}}
+    device: {required: true, selector: {text: {}}}
+    category: {required: true, selector: {text: {}}}
+    minutes: {required: true, selector: {number: {min: 1, max: 30, mode: box}}}
+    app_id: {required: false, selector: {text: {}}}
+report_unknown:
+  name: Report unknown
+  description: Add or refresh an item in the classification inbox.
+  fields:
+    kid: {required: true, selector: {text: {}}}
+    device: {required: true, selector: {text: {}}}
+    kind: {required: true, selector: {select: {options: [process, domain]}}}
+    id: {required: true, selector: {text: {}}}
+    hint: {required: false, selector: {text: {}}}
+get_rules:
+  name: Get rules
+  description: Return the versioned classification map to an agent.
+heartbeat:
+  name: Heartbeat
+  description: Mark an agent as connected.
+  fields:
+    kid: {required: true, selector: {text: {}}}
+    device: {required: true, selector: {text: {}}}
+    agent_version: {required: false, selector: {text: {}}}
+reset:
+  name: Reset usage
+  description: Reset one category or all usage for a kid.
+  fields:
+    kid: {required: true, selector: {text: {}}}
+    category: {required: false, selector: {text: {}}}

@@ -1,0 +1,19 @@
+{
+  "title": "Gnomon",
+  "config": {
+    "step": {"user": {"title": "Create the first kid", "description": "Gnomon is visible, measurement-only screen time.", "data": {"kid_name": "Display name", "kid_id": "Kid ID"}}},
+    "error": {"invalid_slug": "Enter a valid kid ID.", "duplicate_or_invalid": "That ID is invalid or already exists."},
+    "abort": {"already_configured": "Gnomon is already configured."}
+  },
+  "options": {
+    "step": {
+      "add_kid": {"title": "Add a kid", "data": {"kid_name": "Display name", "kid_id": "Kid ID"}},
+      "add_category": {"title": "Add a category", "data": {"id": "ID", "name": "Name", "idle_timeout_min": "Idle timeout", "media_counts_as_active": "Media counts as active"}},
+      "rename_category": {"title": "Rename a category", "data": {"category": "Category", "name": "New display name"}},
+      "remove_category": {"title": "Remove a category", "data": {"category": "Category"}},
+      "add_rule": {"title": "Add a rule", "data": {"kind": "Kind", "id": "Process/package or domain", "category": "Category", "kid": "Optional kid override"}},
+      "remove_rule": {"title": "Remove a rule", "data": {"rule": "Rule"}}
+    },
+    "error": {"invalid_slug": "Enter a valid ID.", "duplicate_or_invalid": "That ID is invalid or already exists.", "category_in_use": "Remove mappings and usage before deleting this category."}
+  }
+}
