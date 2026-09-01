@@ -1,7 +1,8 @@
 # Gnomon Home Assistant integration
 
-Copy `home-assistant/custom_components/gnomon` into the same location in your Home Assistant
-configuration, restart HA, and add **Gnomon** from Settings → Devices & services.
+Copy the repository's `custom_components/gnomon` directory into
+`custom_components/gnomon` under your Home Assistant configuration directory,
+restart HA, and add **Gnomon** from Settings → Devices & services.
 The first setup seeds common categories, Windows/Android app rules, and domains.
 
 Configure daily resets with an ordinary HA automation (there is intentionally no

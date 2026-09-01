@@ -22,7 +22,7 @@ This integration is the **single source of truth** for a transparent, multi-kid 
 ## 2. Tech constraints
 
 - Python 3.12+, targets Home Assistant Core 2025.x+
-- Standard custom integration layout in `home-assistant/custom_components/gnomon/`
+- Standard HACS custom integration layout in `custom_components/gnomon/`
 - Use `homeassistant.helpers.storage.Store` for persistence
 - Use config entries (UI-based config flow); no YAML configuration
 - Async throughout; no blocking I/O in the event loop
@@ -31,7 +31,7 @@ This integration is the **single source of truth** for a transparent, multi-kid 
 ### File layout
 
 ```
-home-assistant/custom_components/gnomon/
+custom_components/gnomon/
 ├── __init__.py          # setup, service registration, storage load
 ├── manifest.json        # domain: "gnomon", iot_class: "calculated"
 ├── const.py             # all constants, entity ID helpers

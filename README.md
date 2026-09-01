@@ -7,7 +7,8 @@ locking, overlays, stealth mode, or process control.
 
 ## Repository layout
 
-- `home-assistant/` — custom integration and its test suite
+- `custom_components/gnomon/` — HACS-compliant Home Assistant integration source
+- `home-assistant/` — Home Assistant tests and development documentation
 - `android/` — Kotlin/Compose Android agent (minSdk 26)
 - `windows/` — .NET 8 agent, browser companion, and WiX installer
 - `docs/specs/` — binding product specifications
@@ -23,15 +24,27 @@ versioned **production** release. Windows artifacts include an MSI, portable ZIP
 and browser companion. Android releases include an APK and, for signed builds,
 an AAB.
 
+Cutting-edge binaries are attached to the
+[`edge` GitHub prerelease](https://github.com/grahamsz/gnomon/releases/tag/edge),
+not committed into the source tree:
+
+- [Windows installer](https://github.com/grahamsz/gnomon/releases/download/edge/GnomonAgent-edge-win-x64.msi)
+- [Windows portable ZIP](https://github.com/grahamsz/gnomon/releases/download/edge/GnomonAgent-edge-win-x64.zip)
+- [Android APK](https://github.com/grahamsz/gnomon/releases/download/edge/Gnomon-edge-android.apk)
+- [Browser companion](https://github.com/grahamsz/gnomon/releases/download/edge/GnomonBrowserCompanion-edge.zip)
+- [Home Assistant package](https://github.com/grahamsz/gnomon/releases/download/edge/Gnomon-edge-home-assistant.zip)
+
+See [all releases](https://github.com/grahamsz/gnomon/releases) for immutable
+production versions after the first `vX.Y.Z` tag is published.
+
 Production Android releases require repository signing secrets. See
 [`docs/releasing.md`](docs/releasing.md) for signing, tagging, and release details.
 
 ## Install in Home Assistant with HACS
 
-After the first production release exists, add
-`https://github.com/grahamsz/gnomon` to HACS as a custom **Integration** repository,
-download Gnomon, restart Home Assistant, then add **Gnomon** from
-**Settings → Devices & services**. The complete setup sequence is in
+Add `https://github.com/grahamsz/gnomon` to HACS as a custom **Integration**
+repository, download Gnomon from `main` or a production release, restart Home
+Assistant, then add **Gnomon** from **Settings → Devices & services**. The complete setup sequence is in
 [`docs/releasing.md`](docs/releasing.md#add-gnomon-to-hacs-and-home-assistant).
 
 ## Local development environment

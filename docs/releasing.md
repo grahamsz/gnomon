@@ -65,12 +65,14 @@ third to 65535. The workflow validates this before building.
 
 ## Add Gnomon to HACS and Home Assistant
 
-A production GitHub release must exist first because this monorepo uses HACS
-release ZIP mode and deliberately hides the default branch from HACS.
+The root-level `custom_components/gnomon` layout lets HACS install the default
+branch immediately. Once a production GitHub release exists, HACS also uses the
+versioned `gnomon.zip` asset created by the workflow.
 
 1. In HACS, open **Integrations**, choose the three-dot menu, then **Custom repositories**.
 2. Enter `https://github.com/grahamsz/gnomon`, select **Integration**, and add it.
-3. Open Gnomon in HACS, choose **Download**, and restart Home Assistant.
+3. Open Gnomon in HACS, choose **Download** (select `main` until a production
+   release exists), and restart Home Assistant.
 4. In Home Assistant, go to **Settings → Devices & services → Add integration** and select **Gnomon**.
 5. Enter the first child's display name and stable lowercase ID, such as `alex`.
 6. Create a Home Assistant long-lived access token from the user profile for each agent.
