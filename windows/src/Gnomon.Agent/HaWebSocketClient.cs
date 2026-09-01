@@ -86,6 +86,7 @@ public sealed class HaWebSocketClient
         if (auth?["type"]?.GetValue<string>() == "auth_invalid") throw new AuthenticationException("auth_invalid");
         if (auth?["type"]?.GetValue<string>() != "auth_ok") throw new InvalidDataException("Expected auth_ok");
         _status.Update(x => x with { HaConnected = true });
+        Log.Information("Connected to Home Assistant for kid {Kid} on device {Device}", _config.Kid, _config.Device);
 
         await RefreshRulesIfStaleAsync(token);
         await SendAsync(ProtocolCodec.SubscribeStateChanges(NextId()), token);

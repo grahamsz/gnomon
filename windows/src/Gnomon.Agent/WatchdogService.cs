@@ -33,11 +33,19 @@ public sealed class WatchdogService : BackgroundService
         if (sessionId < 0 || sessionId == -1) return;
         var configuredUser = LoadConfiguredUser();
         if (string.IsNullOrWhiteSpace(configuredUser) || !SessionBelongsToUser((uint)sessionId, configuredUser)) return;
+        var executable = System.Environment.ProcessPath ?? throw new InvalidOperationException("Executable path unavailable");
         if (Process.GetProcessesByName("Gnomon.Agent").Any(x =>
         {
-            try { return x.SessionId == sessionId; } catch { return false; }
+            try
+            {
+                return x.SessionId == sessionId &&
+                    string.Equals(
+                        Path.GetFullPath(x.MainModule?.FileName ?? ""),
+                        Path.GetFullPath(executable),
+                        StringComparison.OrdinalIgnoreCase);
+            }
+            catch { return false; }
         })) return;
-        var executable = System.Environment.ProcessPath ?? throw new InvalidOperationException("Executable path unavailable");
         SessionLauncher.Launch(executable, (uint)sessionId);
         Log.Information("Relaunched session worker in session {SessionId}", sessionId);
     }
@@ -87,7 +95,9 @@ internal static class SessionLauncher
                 try
                 {
                     var commandLine = $"\"{executable}\"";
-                    var commandBuffer = commandLine.ToCharArray();
+                    // CsWin32's mutable command-line overload requires the caller to
+                    // include the terminating NUL in the backing buffer.
+                    var commandBuffer = (commandLine + '\0').ToCharArray();
                     Span<char> mutableCommandLine = commandBuffer;
                     var desktop = "winsta0\\default";
                     fixed (char* desktopPtr = desktop)
