@@ -1,8 +1,12 @@
 # Windows MSI
 
-Build the self-contained agent publish first, then the WiX project as shown in
+Build the framework-dependent .NET Framework 4.8 agent publish first, then the WiX project as shown in
 the [Windows README](../README.md). A Release build produces
 `GnomonAgent-{version}-x64.msi`.
+
+The installer checks for .NET Framework 4.8 or later. Current Windows versions
+include it, so the application payload remains around two megabytes instead of
+bundling a second runtime.
 
 Interactive installation shows a standard Windows installer and then opens the
 Gnomon configuration window. It asks for the Home Assistant address (default
@@ -12,7 +16,7 @@ account, then restarts the watchdog service.
 For managed deployment, silent installation remains available:
 
 ```powershell
-msiexec /i GnomonAgent-1.0.0-x64.msi /qn /l*v install.log
+msiexec /i GnomonAgent-0.1.0-x64.msi /qn /l*v install.log
 & "$env:ProgramFiles\Gnomon\Gnomon.Agent.exe" --configure
 ```
 

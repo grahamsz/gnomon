@@ -25,7 +25,7 @@ public sealed class Classifier
             if (!extensionFresh || string.IsNullOrWhiteSpace(browserDomain))
                 return Unknown(processName, ClassificationKind.Process, rules.Version);
 
-            var hostname = NormalizeDomain(browserDomain);
+            var hostname = NormalizeDomain(browserDomain!);
             var category = LongestDomainMatch(hostname, domainOverrides)
                            ?? LongestDomainMatch(hostname, rules.Domains);
             return category is null

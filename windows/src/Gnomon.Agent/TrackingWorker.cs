@@ -1,10 +1,9 @@
 using Gnomon.Core;
-using Microsoft.Extensions.Hosting;
 using Serilog;
 
 namespace Gnomon.Agent;
 
-public sealed class TrackingWorker : BackgroundService
+public sealed class TrackingWorker
 {
     private readonly AgentConfig _config;
     private readonly ForegroundWatcher _foreground;
@@ -31,20 +30,23 @@ public sealed class TrackingWorker : BackgroundService
         _quantizer = quantizer; _unknownCache = unknownCache; _extension = extension; _ha = ha; _status = status;
     }
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    public async Task RunAsync(CancellationToken stoppingToken)
     {
         _ = _extension.StartAsync(stoppingToken);
         var haTask = _ha.RunAsync(stoppingToken);
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
         try
         {
-            while (await timer.WaitForNextTickAsync(stoppingToken)) await TickAsync(stoppingToken);
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken);
+                await TickAsync(stoppingToken);
+            }
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
         finally
         {
             Flush(_lastClassification);
-            await _extension.DisposeAsync();
+            await _extension.StopAsync();
             try { await haTask; } catch (OperationCanceledException) { }
         }
     }

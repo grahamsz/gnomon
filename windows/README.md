@@ -1,6 +1,6 @@
 # Gnomon Windows agent
 
-The same WPF executable has two modes:
+The same .NET Framework 4.8 WinForms executable has two modes:
 
 - no arguments: visible per-user tracker, extension listener, HA connection, and tray UI;
 - `--service`: LocalSystem watchdog which ensures the worker exists in the active console session.
@@ -15,11 +15,12 @@ NAudio 2.2.1 places `MMDeviceEnumerator` and audio-session APIs there; the broad
 
 ## Build and test
 
-Install the .NET 8 SDK and WiX v4, then run:
+Install the .NET 8 SDK (used as the compiler), the .NET Framework 4.8 targeting pack,
+and WiX v4+, then run:
 
 ```powershell
 dotnet test windows/Gnomon.sln
-dotnet publish windows/src/Gnomon.Agent/Gnomon.Agent.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false
+dotnet publish windows/src/Gnomon.Agent/Gnomon.Agent.csproj -c Release -p:DebugType=None -p:DebugSymbols=false
 dotnet build windows/installer/Gnomon.Installer.wixproj -c Release
 ```
 

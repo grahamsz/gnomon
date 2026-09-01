@@ -3,7 +3,7 @@
 **Product name:** Gnomon — after the sundial's shadow-casting blade (Greek *gnōmōn*, "the one who indicates"). The name encodes the product's stance: it doesn't block the sun, it makes the time plain to see.
 
 **Component:** `gnomon` custom integration for Home Assistant (Python)
-**Phase:** v1 — measurement and visibility only. **No enforcement of any kind.**
+**Phase:** 0.1 — measurement and visibility only. **No enforcement of any kind.**
 **Audience:** coding agent. This document is self-contained; implement exactly what is specified here.
 
 ---
@@ -17,7 +17,7 @@ This integration is the **single source of truth** for a transparent, multi-kid 
 - The unclassified-item triage queue
 - All entities, services, and events that parents use in dashboards and automations
 
-**Explicit non-goals for v1:** blocking signals that agents act on, lockdown/curfew switches, pause switches, per-kid UI panels, HACS packaging. Block-flag entities are created (computed state only) so parents can prototype automations, but no agent behavior depends on them in v1.
+**Explicit non-goals for 0.1:** blocking signals that agents act on, lockdown/curfew switches, pause switches, per-kid UI panels, HACS packaging. Block-flag entities are created (computed state only) so parents can prototype automations, but no agent behavior depends on them in 0.1.
 
 ## 2. Tech constraints
 
@@ -79,7 +79,7 @@ All entities are created dynamically per kid/device/category from coordinator st
 | Usage (per device) | `sensor.gnomon_used_{kid}_{device}_{category}` | int, unit `min`, `state_class=total`? No — resets daily, so plain measurement. Restored across restarts via `RestoreEntity`. |
 | Usage (total) | `sensor.gnomon_used_{kid}_{category}` | sum across the kid's devices; computed in coordinator |
 | Limit | `number.gnomon_limit_{kid}_{category}` | 0–720 min, step 5; stored per kid/category |
-| Exhausted flag | `binary_sensor.gnomon_exhausted_{kid}_{category}` | `on` when total usage ≥ limit. **Advisory only in v1.** |
+| Exhausted flag | `binary_sensor.gnomon_exhausted_{kid}_{category}` | `on` when total usage ≥ limit. **Advisory only in 0.1.** |
 | Rules version | `sensor.gnomon_rules_version` | int; agents watch this to invalidate their cache |
 | Agent connected | `binary_sensor.gnomon_agent_{kid}_{device}` | `on` when a heartbeat was seen within 15 min; use `async_track_point_in_time`, no polling |
 | Triage select | `select.gnomon_classify_{slug(kind)}_{slug(id)}` | transient; options = all category ids; see §7 |
@@ -98,7 +98,7 @@ category: string (required, must exist; unknown category → log warning, bill t
 minutes: int (required, 1–30; delta since last report)
 app_id: string (optional, process name or domain, for diagnostics)
 ```
-No response. Increments `sensor.gnomon_used_{kid}_{device}_{category}`, recomputes totals and exhausted flags, refreshes agent-connected state. When usage crosses the limit (exhausted transitions off→on), fire event `gnomon_limit_reached` with `{kid, category, limit, used}` — parents wire notifications to this in v1.
+No response. Increments `sensor.gnomon_used_{kid}_{device}_{category}`, recomputes totals and exhausted flags, refreshes agent-connected state. When usage crosses the limit (exhausted transitions off→on), fire event `gnomon_limit_reached` with `{kid, category, limit, used}` — parents wire notifications to this in 0.1.
 
 ### `gnomon.report_unknown`
 ```yaml
@@ -196,7 +196,7 @@ Seed data: ship a built-in seed map (constant, ~40 entries) covering common game
 8. Example reset automation from README works unmodified
 9. `pytest` + `pytest-homeassistant-custom-component` tests covering services, triage flow, and restore
 
-## 11. v1.1 seams (design for, do not build)
+## 11. 0.2 seams (design for, do not build)
 
 - Lockdown/pause `switch` entities per kid
 - Enforcement events the agents subscribe to (`binary_sensor` state is already there)

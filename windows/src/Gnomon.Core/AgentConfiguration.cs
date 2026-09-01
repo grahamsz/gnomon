@@ -22,7 +22,7 @@ public static class AgentConfiguration
         var input = value.Trim();
         if (input.Length == 0) return false;
 
-        var suppliedScheme = input.Contains("://", StringComparison.Ordinal);
+        var suppliedScheme = input.IndexOf("://", StringComparison.Ordinal) >= 0;
         var candidate = suppliedScheme ? input : $"http://{input}";
         if (!Uri.TryCreate(candidate, UriKind.Absolute, out var uri) || string.IsNullOrWhiteSpace(uri.Host))
             return false;

@@ -27,16 +27,32 @@ jobs:
       tag: ${{ steps.release.outputs.tag }}
       publish: ${{ steps.release.outputs.publish }}
     steps:
+      - uses: actions/checkout@v6
       - id: release
         name: Resolve release channel and version
         shell: bash
         run: |
           set -euo pipefail
           short_sha="${GITHUB_SHA:0:7}"
+          base_version="$(tr -d '[:space:]' < VERSION)"
+          if [[ ! "$base_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "VERSION must contain X.Y.Z." >&2
+            exit 1
+          fi
+          [[ "$(jq -r .version custom_components/gnomon/manifest.json)" == "$base_version" ]]
+          [[ "$(jq -r .version windows/browser-extension/manifest.json)" == "$base_version" ]]
+          [[ "$(jq -r .version windows/browser-extension/package.json)" == "$base_version" ]]
+          grep -Fq "\"$base_version\"" android/app/build.gradle.kts
+          grep -Fq ">$base_version</Version>" windows/installer/Gnomon.Installer.wixproj
+          grep -Fq ">$base_version</Version>" windows/src/Gnomon.Agent/Gnomon.Agent.csproj
           if [[ "$GITHUB_REF" == refs/tags/* ]]; then
             version="${GITHUB_REF_NAME#v}"
             if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
               echo "Production tags must have the form vX.Y.Z." >&2
+              exit 1
+            fi
+            if [[ "$version" != "$base_version" ]]; then
+              echo "Production tag $version does not match VERSION ($base_version)." >&2
               exit 1
             fi
             IFS=. read -r major minor patch <<< "$version"
@@ -50,18 +66,18 @@ jobs:
             tag="$GITHUB_REF_NAME"
             publish="true"
           elif [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
-            version="0.0.${GITHUB_RUN_NUMBER}"
-            display_version="0.0.0-ci.${GITHUB_RUN_NUMBER}+${short_sha}"
+            version="$base_version"
+            display_version="${base_version}-ci.${GITHUB_RUN_NUMBER}+${short_sha}"
             asset_suffix="ci-${GITHUB_RUN_NUMBER}-${short_sha}"
             channel="ci"
             tag=""
             publish="false"
           else
-            version="0.0.${GITHUB_RUN_NUMBER}"
-            display_version="0.0.0-edge.${GITHUB_RUN_NUMBER}+${short_sha}"
-            asset_suffix="edge"
-            channel="edge"
-            tag="edge"
+            version="$base_version"
+            display_version="${base_version}-dev.${GITHUB_RUN_NUMBER}+${short_sha}"
+            asset_suffix="dev"
+            channel="dev"
+            tag="dev"
             publish="true"
           fi
           {
@@ -168,9 +184,13 @@ jobs:
         shell: pwsh
         run: |
           $publish = Join-Path $env:RUNNER_TEMP "gnomon-win-x64"
-          dotnet publish windows/src/Gnomon.Agent/Gnomon.Agent.csproj -c Release -r win-x64 --self-contained `
-            -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true `
+          dotnet publish windows/src/Gnomon.Agent/Gnomon.Agent.csproj -c Release `
             -p:DebugType=None -p:DebugSymbols=false "-p:Version=$env:BUILD_VERSION" -o $publish
+          $bytes = (Get-ChildItem $publish -File | Measure-Object Length -Sum).Sum
+          if ($bytes -gt 10MB) {
+            throw "Windows publish is $([math]::Round($bytes / 1MB, 2)) MiB; the 10 MiB size budget was exceeded."
+          }
+          Write-Output "Windows publish: $([math]::Round($bytes / 1MB, 2)) MiB"
           "WINDOWS_PUBLISH_DIR=$publish" | Out-File $env:GITHUB_ENV -Append
       - name: Smoke-test Windows entry points
         shell: pwsh
@@ -243,6 +263,9 @@ jobs:
             -DestinationPath "dist/GnomonAgent-$env:ASSET_SUFFIX-win-x64.zip"
           $msi = Get-ChildItem windows/installer/bin -Recurse -Filter *.msi |
             Sort-Object LastWriteTime | Select-Object -Last 1 -ExpandProperty FullName
+          if ((Get-Item $msi).Length -gt 10MB) {
+            throw "Windows MSI is $([math]::Round((Get-Item $msi).Length / 1MB, 2)) MiB; the 10 MiB size budget was exceeded."
+          }
           Copy-Item $msi "dist/GnomonAgent-$env:ASSET_SUFFIX-win-x64.msi"
           $extensionFiles = @(
             "windows/browser-extension/manifest.json",
@@ -252,7 +275,14 @@ jobs:
             "windows/browser-extension/popup.js",
             "windows/browser-extension/README.md"
           )
-          Compress-Archive -Path $extensionFiles `
+          $extensionStage = Join-Path $env:RUNNER_TEMP "gnomon-browser-companion"
+          New-Item -ItemType Directory -Force $extensionStage | Out-Null
+          Copy-Item $extensionFiles $extensionStage
+          $manifestPath = Join-Path $extensionStage "manifest.json"
+          $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
+          $manifest.version = $env:BUILD_VERSION
+          $manifest | ConvertTo-Json -Depth 20 | Set-Content $manifestPath -Encoding utf8
+          Compress-Archive -Path (Join-Path $extensionStage "*") `
             -DestinationPath "dist/GnomonBrowserCompanion-$env:ASSET_SUFFIX.zip"
       - uses: actions/upload-artifact@v4
         with:
@@ -305,7 +335,7 @@ jobs:
             exit 1
           else
             echo "ANDROID_SIGNED=false" >> "$GITHUB_ENV"
-            echo "::warning::Using the runner debug key. This edge APK cannot reliably upgrade a previous edge APK."
+            echo "::warning::Using the runner debug key. This dev APK cannot reliably upgrade a previous dev APK."
           fi
       - name: Build Android packages
         working-directory: android
@@ -355,11 +385,11 @@ jobs:
         run: |
           set -euo pipefail
           ls -al dist
-          if [[ "$CHANNEL" == "edge" ]]; then
+          if [[ "$CHANNEL" == "dev" ]]; then
             gh release delete "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes || true
             gh release create "$RELEASE_TAG" dist/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-              --title "Gnomon edge" --prerelease \
-              --notes "Cutting-edge build from ${GITHUB_SHA}. Built automatically from main; it may be unstable."
+              --title "Gnomon dev" --prerelease \
+              --notes "Development build from ${GITHUB_SHA}. Built automatically from main; it may be unstable."
           elif gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" dist/* --repo "$GITHUB_REPOSITORY" --clobber
           else

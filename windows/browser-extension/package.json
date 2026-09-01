@@ -1,6 +1,6 @@
 {
   "name": "gnomon-browser-companion",
   "private": true,
-  "version": "1.0.0",
+  "version": "0.1.0",
   "scripts": {"test": "node --test tests/*.test.js"}
 }

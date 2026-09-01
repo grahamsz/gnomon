@@ -27,8 +27,9 @@ public sealed class AgentStatus : INotifyPropertyChanged
     {
         lock (this)
         {
-            _localUsage[category] = _localUsage.GetValueOrDefault(category) + minutes;
-            var total = _categoryTotals.GetValueOrDefault(category);
+            _localUsage.TryGetValue(category, out var local);
+            _localUsage[category] = local + minutes;
+            _categoryTotals.TryGetValue(category, out var total);
             _categoryTotals[category] = (total.Used + minutes, total.Limit);
         }
         Changed?.Invoke(this, EventArgs.Empty);
@@ -38,7 +39,7 @@ public sealed class AgentStatus : INotifyPropertyChanged
     {
         lock (this)
         {
-            var value = _categoryTotals.GetValueOrDefault(category);
+            _categoryTotals.TryGetValue(category, out var value);
             _categoryTotals[category] = (used ?? value.Used, limit ?? value.Limit);
         }
         Changed?.Invoke(this, EventArgs.Empty);

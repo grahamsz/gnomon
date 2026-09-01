@@ -15,7 +15,7 @@ public sealed class TrayController : IDisposable
     public TrayController(AgentStatus status)
     {
         _status = status;
-        _appIcon = Icon.ExtractAssociatedIcon(Environment.ProcessPath ?? System.Windows.Forms.Application.ExecutablePath);
+        _appIcon = Icon.ExtractAssociatedIcon(Program.ExecutablePath);
         _icon = new NotifyIcon
         {
             Icon = _appIcon ?? SystemIcons.Information, Visible = true, Text = "Gnomon · starting"
@@ -31,7 +31,7 @@ public sealed class TrayController : IDisposable
 
     private void Open()
     {
-        _window ??= new MainWindow(_status);
+        if (_window is null || _window.IsDisposed) _window = new MainWindow(_status);
         _window.Show(); _window.Activate();
     }
 
@@ -41,7 +41,7 @@ public sealed class TrayController : IDisposable
         {
             Process.Start(new ProcessStartInfo
             {
-                FileName = Environment.ProcessPath ?? System.Windows.Forms.Application.ExecutablePath,
+                FileName = Program.ExecutablePath,
                 Arguments = "--configure",
                 UseShellExecute = true,
                 Verb = "runas",
@@ -60,8 +60,15 @@ public sealed class TrayController : IDisposable
         var tooltip = !status.HaConnected
             ? "Gnomon · Home Assistant offline"
             : string.IsNullOrEmpty(summary) ? "Gnomon · connected · no usage yet" : summary;
-        _icon.Text = tooltip[..Math.Min(63, tooltip.Length)];
+        _icon.Text = tooltip.Substring(0, Math.Min(63, tooltip.Length));
     }
 
-    public void Dispose() { _status.Changed -= Changed; _icon.Visible = false; _icon.Dispose(); _appIcon?.Dispose(); }
+    public void Dispose()
+    {
+        _status.Changed -= Changed;
+        _window?.Dispose();
+        _icon.Visible = false;
+        _icon.Dispose();
+        _appIcon?.Dispose();
+    }
 }

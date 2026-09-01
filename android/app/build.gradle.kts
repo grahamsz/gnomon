@@ -6,7 +6,7 @@ plugins {
 }
 
 val gnomonVersionCode = providers.gradleProperty("gnomonVersionCode").orNull?.toInt() ?: 1
-val gnomonVersionName = providers.gradleProperty("gnomonVersionName").orNull ?: "1.0.0"
+val gnomonVersionName = providers.gradleProperty("gnomonVersionName").orNull ?: "0.1.0"
 val releaseKeystorePath = providers.environmentVariable("ANDROID_KEYSTORE_PATH").orNull
 val releaseKeystorePassword = providers.environmentVariable("ANDROID_KEYSTORE_PASSWORD").orNull
 val releaseKeyAlias = providers.environmentVariable("ANDROID_KEY_ALIAS").orNull

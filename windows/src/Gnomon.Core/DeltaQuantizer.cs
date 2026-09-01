@@ -7,16 +7,18 @@ public sealed class DeltaQuantizer
     public void Accumulate(string category, TimeSpan elapsed)
     {
         if (elapsed <= TimeSpan.Zero) return;
-        _seconds[category] = _seconds.GetValueOrDefault(category) + elapsed.TotalSeconds;
+        _seconds.TryGetValue(category, out var current);
+        _seconds[category] = current + elapsed.TotalSeconds;
     }
 
     public int FlushWholeMinutes(string category)
     {
-        var seconds = _seconds.GetValueOrDefault(category);
+        _seconds.TryGetValue(category, out var seconds);
         var minutes = (int)Math.Floor(seconds / 60d);
         _seconds[category] = seconds - minutes * 60d;
         return minutes;
     }
 
-    public double RemainderSeconds(string category) => _seconds.GetValueOrDefault(category);
+    public double RemainderSeconds(string category) =>
+        _seconds.TryGetValue(category, out var seconds) ? seconds : 0;
 }

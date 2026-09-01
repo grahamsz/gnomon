@@ -5,12 +5,13 @@ using Gnomon.Core;
 
 namespace Gnomon.Agent;
 
-public sealed class ExtensionServer : IAsyncDisposable
+public sealed class ExtensionServer
 {
     private readonly HttpListener _listener = new();
     private readonly AgentConfig _config;
     private readonly AgentStatus _status;
     private CancellationTokenSource? _cts;
+    private CancellationTokenRegistration _stopRegistration;
     public string? CurrentDomain { get; private set; }
     public DateTimeOffset? LastSeen { get; private set; }
 
@@ -24,6 +25,10 @@ public sealed class ExtensionServer : IAsyncDisposable
     {
         _cts = CancellationTokenSource.CreateLinkedTokenSource(parent);
         _listener.Start();
+        _stopRegistration = _cts.Token.Register(() =>
+        {
+            try { _listener.Stop(); } catch (ObjectDisposedException) { }
+        });
         return Task.Run(() => LoopAsync(_cts.Token), _cts.Token);
     }
 
@@ -32,9 +37,9 @@ public sealed class ExtensionServer : IAsyncDisposable
         while (!token.IsCancellationRequested)
         {
             HttpListenerContext context;
-            try { context = await _listener.GetContextAsync().WaitAsync(token); }
-            catch (OperationCanceledException) { break; }
+            try { context = await _listener.GetContextAsync(); }
             catch (HttpListenerException) when (token.IsCancellationRequested) { break; }
+            catch (ObjectDisposedException) when (token.IsCancellationRequested) { break; }
             context.Response.Headers["Access-Control-Allow-Origin"] = "*";
             context.Response.Headers["Access-Control-Allow-Headers"] = "content-type";
             if (context.Request.HttpMethod == "OPTIONS")
@@ -66,15 +71,19 @@ public sealed class ExtensionServer : IAsyncDisposable
                     agent = "up", rulesVersion = _status.Snapshot.RulesVersion,
                     domain = CurrentDomain, category = _status.Snapshot.Category
                 });
-                await context.Response.OutputStream.WriteAsync(bytes, token);
+                await context.Response.OutputStream.WriteAsync(bytes, 0, bytes.Length, token);
             }
             else context.Response.StatusCode = 404;
             context.Response.Close();
         }
     }
 
-    public ValueTask DisposeAsync()
+    public Task StopAsync()
     {
-        _cts?.Cancel(); _listener.Close(); _cts?.Dispose(); return ValueTask.CompletedTask;
+        _cts?.Cancel();
+        _stopRegistration.Dispose();
+        _listener.Close();
+        _cts?.Dispose();
+        return Task.CompletedTask;
     }
 }

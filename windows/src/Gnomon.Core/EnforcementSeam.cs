@@ -1,6 +1,6 @@
 namespace Gnomon.Core;
 
-/// <summary>Version 1 seam only. No implementation may enforce policy.</summary>
+/// <summary>Version 0.1 seam only. No implementation may enforce policy.</summary>
 public interface IEnforcementAdapter
 {
     void OnCategoryExhausted(string category);

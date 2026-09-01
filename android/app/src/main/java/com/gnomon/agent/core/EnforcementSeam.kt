@@ -1,6 +1,6 @@
 package com.gnomon.agent.core
 
-/** Version 1 seam only. The production implementation intentionally does nothing. */
+/** Version 0.1 seam only. The production implementation intentionally does nothing. */
 interface EnforcementController {
     fun onCategoryExhausted(category: String)
     fun onLockdown(state: Boolean)

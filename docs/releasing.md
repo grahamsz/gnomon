@@ -1,8 +1,12 @@
 # Releases, signing, and HACS
 
 GitHub Actions builds all three components on pull requests. A push to `main`
-also replaces the moving `edge` prerelease, while a semantic tag such as
-`v1.0.0` creates a production release.
+also replaces the moving `dev` prerelease, while a semantic tag such as
+`v0.1.0` creates a production release.
+
+`VERSION` is the shared release baseline for every component. Development builds
+append their run and commit to the display version; production tags must exactly
+match `v` plus the value in `VERSION`.
 
 ## GitHub repository metadata
 
@@ -32,8 +36,8 @@ gh secret set ANDROID_KEY_PASSWORD
 
 Set `ANDROID_KEY_ALIAS` to `gnomon` if you use the command above. Keep the JKS
 and its passwords in a password manager/offline backup; losing them prevents
-future APK updates. Edge releases use the same key when configured. Without it,
-edge still builds an installable debug APK, but successive edge APKs may require
+future APK updates. Dev releases use the same key when configured. Without it,
+dev still builds an installable debug APK, but successive dev APKs may require
 uninstalling the prior build. Production intentionally fails rather than publish
 an unusable unsigned APK.
 
@@ -57,8 +61,8 @@ ZIP/browser companion, signed Android APK/AAB, and a manual-install `gnomon.zip`
 Home Assistant package.
 
 ```powershell
-git tag -a v1.0.0 -m "Gnomon 1.0.0"
-git push origin v1.0.0
+git tag -a v0.1.0 -m "Gnomon 0.1.0"
+git push origin v0.1.0
 ```
 
 Windows Installer versions limit the first two version numbers to 255 and the

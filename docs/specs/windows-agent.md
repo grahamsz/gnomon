@@ -1,7 +1,7 @@
 # Spec: Gnomon — Windows Agent (C#)
 
 **Component:** Windows background agent (tracking, classification, reporting)
-**Phase:** v1 — measurement and visibility only. **No enforcement of any kind: no process killing, no overlays, no session locking.**
+**Phase:** 0.1 — measurement and visibility only. **No enforcement of any kind: no process killing, no overlays, no session locking.**
 **Audience:** coding agent. This document is self-contained; implement exactly what is specified here.
 
 ---
@@ -12,17 +12,16 @@ A Windows service that observes which application is actively being used, classi
 
 The Home Assistant integration is specified in a companion document (`home-assistant-integration.md`); the binding contract is reproduced in §8 of this spec and takes precedence if anything here appears to conflict.
 
-**Explicit non-goals for v1:** enforcement (killing, closing, overlaying, locking), anti-tamper policy lockdowns, browser-page blocking, commercial code signing (self-signed documented; see §11).
+**Explicit non-goals for 0.1:** enforcement (killing, closing, overlaying, locking), anti-tamper policy lockdowns, browser-page blocking, commercial code signing (self-signed documented; see §11).
 
 ## 2. Tech constraints
 
-- .NET 8, C# 12
-- `Microsoft.Extensions.Hosting` worker service; `UseWindowsService()` support
+- .NET Framework 4.8, compiled with C# 12
+- Lightweight `ServiceBase` watchdog and ordinary cancellation-controlled tasks; no generic host
 - Win32 interop via `CsWin32` (source-generated P/Invoke) — no hand-written signatures
-- GSMTC via WinRT (`Windows.Media.Control`) — target framework `net8.0-windows10.0.19041.0`
-- Audio session fallback via NAudio (`NAudio.Core` only)
+- GSMTC media-session detection via the Windows SDK contracts plus a foreground audio-session fallback via the narrow NAudio WASAPI packages
 - WebSocket client: `System.Net.WebSockets.ClientWebSocket` + `System.Text.Json`
-- Tray/status UI: WPF, small, read-only
+- Tray/status UI: WinForms, small, read-only
 - Serilog to rolling file under `%ProgramData%\Gnomon\logs`
 - Installer: WiX Toolset v4+ producing a per-machine MSI (see §11)
 - Config: `%ProgramData%\Gnomon\config.json`, documented schema, hot-reload not required; seeded by the installer, never overwritten on upgrade
@@ -31,10 +30,10 @@ The Home Assistant integration is specified in a companion document (`home-assis
 
 **Technical constraint that dictates the design:** Windows services run in Session 0 and **cannot** hook a user session's foreground-window events, read its input-idle state, or enumerate its audio sessions. Tracking must live in the kid's session; the service is a watchdog, not the tracker.
 
-- **Session worker:** `Gnomon.Agent.exe` (default mode, runs as the logged-in user, no console). Owns: tracking core, classifier, activity state machine, extension HTTP listener, HA connection, delta queue, and the WPF tray UI (§7). Autostarted via HKLM Run key (§11); no-ops unless the session user matches `windowsUser`.
-- **Watchdog service:** `Gnomon.Agent.exe --service`, runs as **LocalSystem** via `UseWindowsService()`. One job: ensure the session worker is running in the configured user's session (session-change events + 60 s check; relaunch via `WTSGetActiveConsoleSessionId` + `CreateProcessAsUser`). No tracking, no HA connection.
-- Killing the worker stops tracking, but the watchdog relaunches it within 60 s — sufficient for v1 (hard anti-tamper is explicitly out of scope).
-- One compressed self-contained single-file publish serves both modes (no .NET runtime prerequisite).
+- **Session worker:** `Gnomon.Agent.exe` (default mode, runs as the logged-in user, no console). Owns: tracking core, classifier, activity state machine, extension HTTP listener, HA connection, delta queue, and the WinForms tray UI (§7). Autostarted via HKLM Run key (§11); no-ops unless the session user matches `windowsUser`.
+- **Watchdog service:** `Gnomon.Agent.exe --service`, runs as **LocalSystem** via `ServiceBase`. One job: ensure the session worker is running in the configured user's session (60 s check; relaunch via `WTSGetActiveConsoleSessionId` + `CreateProcessAsUser`). No tracking, no HA connection.
+- Killing the worker stops tracking, but the watchdog relaunches it within 60 s — sufficient for 0.1 (hard anti-tamper is explicitly out of scope).
+- One framework-dependent executable serves both modes. The MSI requires .NET Framework 4.8 or later, which is included on current Windows versions.
 
 ```json
 {
@@ -58,9 +57,7 @@ The Home Assistant integration is specified in a companion document (`home-assis
 The agent counts time only when the foreground app is **actively used**, per category config:
 
 - **Input signal:** `GetLastInputInfo`; input-idle = `now − lastInput > category.idle_timeout_min` (default 3 min)
-- **Media signal (two probes, OR'd):**
-  - GSMTC: any session with `PlaybackStatus == Playing`. Poll every 5 s while a media-relevant app is foreground (cheap; sessions are cached by the OS).
-  - NAudio `AudioSessionManager2`: any session belonging to the foreground PID with state `Active`. Catches games that don't register with GSMTC.
+- **Media signal (two probes, OR'd):** GSMTC playback state, then NAudio `AudioSessionManager2` for an audio session belonging to the foreground PID with state `Active`. Poll every 5 s.
 - **Hard stops:** session locked, display asleep, or screensaver running → never count.
 
 ### 3.3 Activity state machine (per tick, 1 s)
@@ -105,7 +102,7 @@ Ship a minimal Manifest V3 extension (Chrome/Edge) in `windows/browser-extension
 
 ## 7. Kid-visible status UI
 
-WPF tray UI hosted in the session worker (§2):
+WinForms tray UI hosted in the session worker (§2):
 
 - Tray icon tooltip: `Games 47/90 min · Video 12/30 min`
 - Window (open from tray): table of categories with used/limit/remaining, current foreground app and its live classification, extension status, HA connection status, and a read-only view of the local unclassified list ("these currently count as unclassified")
@@ -153,21 +150,21 @@ Response schema:
 ## 10. Acceptance criteria
 
 1. Foreground changes are event-driven (verify: <1% CPU idle, no polling)
-2. Fortnite lobby with no input for 3 min stops counting; Netflix playing with no input keeps counting (GSMTC); both verifiable in logs
+2. Fortnite lobby with no input for 3 min stops counting; a foreground player with an active audio session keeps counting when its category enables media activity; both verifiable in logs
 3. `youtube.com` in Edge bills `video`; `docs.google.com` bills `schoolwork`; killing the extension bills the browser as `unclassified` within 60 s
 4. Unknown exe appears once in HA triage, with file-description hint
 5. Kill network for 10 min with active usage → deltas queued and flushed on restore; no loss, no duplication
 6. Rules edited in HA → agent picks up new map within ~5 s without restart
 7. Full day soak: HA totals within ±2 min of a manual stopwatch log
 8. `dotnet test` suite covers classifier, state machine, delta quantizer, WS protocol codec (recorded fixtures)
-9. MSI installs silently on a clean Windows 11 VM: service present and running, worker autostarts at user logon, `config.json` seeded, no runtime prerequisites, no SmartScreen-blocking errors beyond the documented unsigned-build warning
+9. MSI installs silently on a clean Windows 11 VM: service present and running, worker autostarts at user logon, `config.json` seeded, .NET Framework 4.8 prerequisite detected, no SmartScreen-blocking errors beyond the documented unsigned-build warning
 10. Upgrade over an existing install preserves `config.json` and `rules-cache.json` and restarts the service; downgrade is blocked with a clear message
 11. Uninstall removes service, binaries, and Run key, leaves `%ProgramData%\Gnomon\` intact; reinstall picks the prior config up unchanged
 12. Kill the session worker as the kid's standard user → watchdog relaunches it within 60 s; attempts to stop the `GnomonAgent` service as that user are denied by the OS
 
 ## 11. Packaging: MSI installer (WiX)
 
-A proper MSI is a v1 deliverable. Use **WiX Toolset v4+** with the `WixToolset.Sdk` MSBuild project at `windows/installer/Gnomon.Installer.wixproj`; a Release build produces `GnomonAgent-{version}-x64.msi`.
+A proper MSI is a 0.1 deliverable. Use **WiX Toolset v4+** with the `WixToolset.Sdk` MSBuild project at `windows/installer/Gnomon.Installer.wixproj`; a Release build produces `GnomonAgent-{version}-x64.msi`.
 
 ### 11.1 Package identity
 - Per-machine, x64: `InstallScope="perMachine"`, `InstallPrivileges="elevated"` (admin required — the parent installs it)
@@ -175,8 +172,8 @@ A proper MSI is a v1 deliverable. Use **WiX Toolset v4+** with the `WixToolset.S
 - `MajorUpgrade` with a `DowngradeErrorMessage`; same-version reinstall allowed for repair
 
 ### 11.2 Input & layout
-- Input is the compressed self-contained single-file publish: `dotnet publish -r win-x64 --self-contained -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false` — the MSI must have **no .NET runtime prerequisite**
-- `ProgramFiles64Folder\Gnomon\Gnomon.Agent.exe` (+ native deps if any)
+- Input is the framework-dependent .NET Framework 4.8 publish: `dotnet publish -c Release -p:DebugType=None -p:DebugSymbols=false`. CI enforces a 10 MiB maximum for both the publish directory and MSI.
+- `ProgramFiles64Folder\Gnomon\Gnomon.Agent.exe` plus its small managed dependency set
 - `%CommonAppDataFolder%\Gnomon\` seeded with a template `config.json` (placeholders, commented) as a component with `NeverOverwrite="yes"` — **upgrades must never clobber configuration**
 - `%CommonAppDataFolder%\Gnomon\logs\` created with an ACL granting `BUILTIN\Users` Modify — the session worker runs as the kid (standard user) and must write logs
 
@@ -196,10 +193,10 @@ A proper MSI is a v1 deliverable. Use **WiX Toolset v4+** with the `WixToolset.S
 - Code signing: optional `signtool` post-build step gated on a `$(SignCertificate)` property; document the self-signed dev flow and the expected SmartScreen warning for unsigned builds
 
 ### 11.5 Out of the MSI's scope
-- The browser extension is **not** installed by the MSI; `windows/browser-extension/README.md` covers manual sideload (developer mode) for v1, with Chrome Web Store / Edge Add-ons publishing as the v1.1 path (which would then allow force-install via browser policy)
+- The browser extension is **not** installed by the MSI; `windows/browser-extension/README.md` covers manual sideload (developer mode) for 0.1, with Chrome Web Store / Edge Add-ons publishing as the 0.2 path (which would then allow force-install via browser policy)
 
-## 12. v1.1 seams (design for, do not build)
+## 12. 0.2 seams (design for, do not build)
 
-- An `IEnforcementAdapter` interface (`OnCategoryExhausted(category)`, `OnLockdown(state)`) with a no-op v1 implementation; wire the subscription to `binary_sensor.gnomon_exhausted_*` events behind a config flag that defaults off. v1.1 enforcement (process kills, `LockWorkStation`) can run in the session worker — same-user process control needs no elevation.
+- An `IEnforcementAdapter` interface (`OnCategoryExhausted(category)`, `OnLockdown(state)`) with a no-op 0.1 implementation; wire the subscription to `binary_sensor.gnomon_exhausted_*` events behind a config flag that defaults off. 0.2 enforcement (process kills, `LockWorkStation`) can run in the session worker — same-user process control needs no elevation.
 - Toast notification helper (warning path) — may exist as dead code behind the same flag
 - Policy lockdowns for the kid account (DisableTaskMgr, AppLocker rules) as an optional second MSI feature/components group

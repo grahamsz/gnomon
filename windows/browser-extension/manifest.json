@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Gnomon Browser Companion",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Reports only the active tab hostname to the visible local Gnomon agent.",
   "permissions": ["tabs", "alarms"],
   "host_permissions": ["http://127.0.0.1:45981/*"],

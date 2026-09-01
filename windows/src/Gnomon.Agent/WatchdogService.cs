@@ -3,7 +3,6 @@ using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text.Json;
 using Gnomon.Core;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Win32.SafeHandles;
 using Serilog;
 using Windows.Win32;
@@ -13,18 +12,17 @@ using Windows.Win32.System.Threading;
 
 namespace Gnomon.Agent;
 
-public sealed class WatchdogService : BackgroundService
+public sealed class WatchdogService
 {
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    public async Task RunAsync(CancellationToken stoppingToken)
     {
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(60));
-        do
+        while (!stoppingToken.IsCancellationRequested)
         {
             try { EnsureWorker(); }
             catch (Exception ex) { Log.Error(ex, "Could not ensure session worker"); }
-            try { if (!await timer.WaitForNextTickAsync(stoppingToken)) break; }
+            try { await Task.Delay(TimeSpan.FromSeconds(60), stoppingToken); }
             catch (OperationCanceledException) { break; }
-        } while (!stoppingToken.IsCancellationRequested);
+        }
     }
 
     private static void EnsureWorker()
@@ -33,7 +31,7 @@ public sealed class WatchdogService : BackgroundService
         if (sessionId < 0 || sessionId == -1) return;
         var configuredUser = LoadConfiguredUser();
         if (string.IsNullOrWhiteSpace(configuredUser) || !SessionBelongsToUser((uint)sessionId, configuredUser)) return;
-        var executable = System.Environment.ProcessPath ?? throw new InvalidOperationException("Executable path unavailable");
+        var executable = Program.ExecutablePath;
         if (Process.GetProcessesByName("Gnomon.Agent").Any(x =>
         {
             try

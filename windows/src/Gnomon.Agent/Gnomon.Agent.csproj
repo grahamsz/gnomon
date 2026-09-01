@@ -1,8 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
-    <UseWPF>true</UseWPF>
+    <TargetFramework>net48</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <StartupObject>Gnomon.Agent.Program</StartupObject>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -12,22 +11,19 @@
     <Platforms>x64</Platforms>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\gnomon.ico</ApplicationIcon>
-    <PublishSingleFile>true</PublishSingleFile>
-    <SelfContained>true</SelfContained>
-    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <Version>0.1.0</Version>
     <DebugType Condition="'$(Configuration)' == 'Release'">none</DebugType>
     <DebugSymbols Condition="'$(Configuration)' == 'Release'">false</DebugSymbols>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Gnomon.Core\Gnomon.Core.csproj" />
-    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="8.0.1" />
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Windows.SDK.Contracts" Version="10.0.26100.9169" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Windows.CsWin32" Version="0.3.183">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
-    <PackageReference Include="Serilog.Extensions.Hosting" Version="8.0.0" />
     <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
-    <PackageReference Include="System.ServiceProcess.ServiceController" Version="8.0.1" />
+    <Reference Include="System.ServiceProcess" />
   </ItemGroup>
 </Project>

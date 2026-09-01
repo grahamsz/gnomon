@@ -2,7 +2,7 @@
 
 Gnomon is a transparent, measurement-only screen-time system. Home Assistant is
 the source of truth; visible Windows and Android agents classify foreground use
-and report integer-minute deltas. Version 1 deliberately contains no blocking,
+and report integer-minute deltas. The 0.1 series deliberately contains no blocking,
 locking, overlays, stealth mode, or process control.
 
 ## Repository layout
@@ -10,7 +10,7 @@ locking, overlays, stealth mode, or process control.
 - `custom_components/gnomon/` — HACS-compliant Home Assistant integration source
 - `home-assistant/` — Home Assistant tests and development documentation
 - `android/` — Kotlin/Compose Android agent (minSdk 26)
-- `windows/` — .NET 8 agent, browser companion, and WiX installer
+- `windows/` — .NET Framework 4.8 agent, browser companion, and WiX installer
 - `docs/specs/` — binding product specifications
 
 Each component has its own README with setup and build instructions. The binding
@@ -19,20 +19,20 @@ product specifications live under `docs/specs/`.
 ## Downloads and release channels
 
 GitHub Actions builds Home Assistant, Windows, and Android together. Every push
-to `main` refreshes the **edge** prerelease; tags such as `v1.0.0` create a
+to `main` refreshes the **dev** prerelease; tags such as `v0.1.0` create a
 versioned **production** release. Windows artifacts include an MSI, portable ZIP,
 and browser companion. Android releases include an APK and, for signed builds,
 an AAB.
 
-Cutting-edge binaries are attached to the
-[`edge` GitHub prerelease](https://github.com/grahamsz/gnomon/releases/tag/edge),
+Development binaries are attached to the
+[`dev` GitHub prerelease](https://github.com/grahamsz/gnomon/releases/tag/dev),
 not committed into the source tree:
 
-- [Windows installer](https://github.com/grahamsz/gnomon/releases/download/edge/GnomonAgent-edge-win-x64.msi)
-- [Windows portable ZIP](https://github.com/grahamsz/gnomon/releases/download/edge/GnomonAgent-edge-win-x64.zip)
-- [Android APK](https://github.com/grahamsz/gnomon/releases/download/edge/Gnomon-edge-android.apk)
-- [Browser companion](https://github.com/grahamsz/gnomon/releases/download/edge/GnomonBrowserCompanion-edge.zip)
-- [Home Assistant package](https://github.com/grahamsz/gnomon/releases/download/edge/Gnomon-edge-home-assistant.zip)
+- [Windows installer](https://github.com/grahamsz/gnomon/releases/download/dev/GnomonAgent-dev-win-x64.msi)
+- [Windows portable ZIP](https://github.com/grahamsz/gnomon/releases/download/dev/GnomonAgent-dev-win-x64.zip)
+- [Android APK](https://github.com/grahamsz/gnomon/releases/download/dev/Gnomon-dev-android.apk)
+- [Browser companion](https://github.com/grahamsz/gnomon/releases/download/dev/GnomonBrowserCompanion-dev.zip)
+- [Home Assistant package](https://github.com/grahamsz/gnomon/releases/download/dev/Gnomon-dev-home-assistant.zip)
 
 See [all releases](https://github.com/grahamsz/gnomon/releases) for immutable
 production versions after the first `vX.Y.Z` tag is published.
@@ -61,5 +61,5 @@ session before using the commands in the component READMEs:
 
 Agents send only the configured kid/device identifiers, category, integer minute
 deltas, process/package identifiers, browser hostnames, and optional app labels.
-The browser extension never sends URLs, paths, page titles, or history. Gnomon v1
+The browser extension never sends URLs, paths, page titles, or history. Gnomon 0.1
 only measures and displays activity.

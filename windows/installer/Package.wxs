@@ -7,16 +7,31 @@
     <MajorUpgrade DowngradeErrorMessage="A newer version of Gnomon Agent is already installed."
                   AllowSameVersionUpgrades="yes" />
     <MediaTemplate EmbedCab="yes" />
+    <PropertyRef Id="WIX_IS_NETFRAMEWORK_48_OR_LATER_INSTALLED" />
+    <Launch Condition="Installed OR WIX_IS_NETFRAMEWORK_48_OR_LATER_INSTALLED"
+            Message="Gnomon requires .NET Framework 4.8 or later, which is included with current Windows versions." />
 
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLDIR" Name="Gnomon">
         <Component Id="AgentBinary" Guid="D51CC460-7391-4877-8BA3-694F2CC4B94C" Bitness="always64">
           <File Id="AgentExe" Source="$(var.AgentPublishDir)\Gnomon.Agent.exe" KeyPath="yes" />
-          <File Id="D3DCompiler" Source="$(var.AgentPublishDir)\D3DCompiler_47_cor3.dll" />
-          <File Id="PenImc" Source="$(var.AgentPublishDir)\PenImc_cor3.dll" />
-          <File Id="PresentationNative" Source="$(var.AgentPublishDir)\PresentationNative_cor3.dll" />
-          <File Id="VisualCppRuntime" Source="$(var.AgentPublishDir)\vcruntime140_cor3.dll" />
-          <File Id="WpfGraphics" Source="$(var.AgentPublishDir)\wpfgfx_cor3.dll" />
+          <File Id="AgentConfig" Source="$(var.AgentPublishDir)\Gnomon.Agent.exe.config" />
+          <File Id="CoreAssembly" Source="$(var.AgentPublishDir)\Gnomon.Core.dll" />
+          <File Id="AsyncInterfaces" Source="$(var.AgentPublishDir)\Microsoft.Bcl.AsyncInterfaces.dll" />
+          <File Id="NAudioCore" Source="$(var.AgentPublishDir)\NAudio.Core.dll" />
+          <File Id="NAudioWasapi" Source="$(var.AgentPublishDir)\NAudio.Wasapi.dll" />
+          <File Id="Serilog" Source="$(var.AgentPublishDir)\Serilog.dll" />
+          <File Id="SerilogFileSink" Source="$(var.AgentPublishDir)\Serilog.Sinks.File.dll" />
+          <File Id="SystemBuffers" Source="$(var.AgentPublishDir)\System.Buffers.dll" />
+          <File Id="DiagnosticSource" Source="$(var.AgentPublishDir)\System.Diagnostics.DiagnosticSource.dll" />
+          <File Id="SystemMemory" Source="$(var.AgentPublishDir)\System.Memory.dll" />
+          <File Id="NumericsVectors" Source="$(var.AgentPublishDir)\System.Numerics.Vectors.dll" />
+          <File Id="CompilerUnsafe" Source="$(var.AgentPublishDir)\System.Runtime.CompilerServices.Unsafe.dll" />
+          <File Id="TextEncodingsWeb" Source="$(var.AgentPublishDir)\System.Text.Encodings.Web.dll" />
+          <File Id="SystemTextJson" Source="$(var.AgentPublishDir)\System.Text.Json.dll" />
+          <File Id="ThreadingChannels" Source="$(var.AgentPublishDir)\System.Threading.Channels.dll" />
+          <File Id="TaskExtensions" Source="$(var.AgentPublishDir)\System.Threading.Tasks.Extensions.dll" />
+          <File Id="SystemValueTuple" Source="$(var.AgentPublishDir)\System.ValueTuple.dll" />
           <File Id="LicenseFile" Source="..\..\LICENSE" Name="LICENSE.txt" />
           <ServiceInstall Id="AgentService" Name="GnomonAgent" DisplayName="Gnomon Screen Time Agent"
                           Description="Keeps the visible Gnomon session worker running."

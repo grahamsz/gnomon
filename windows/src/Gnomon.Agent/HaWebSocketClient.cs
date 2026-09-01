@@ -10,6 +10,7 @@ namespace Gnomon.Agent;
 
 public sealed class HaWebSocketClient
 {
+    private static readonly Random Jitter = new();
     private readonly AgentConfig _config;
     private readonly AgentPaths _paths;
     private readonly AgentStatus _status;
@@ -28,7 +29,7 @@ public sealed class HaWebSocketClient
 
     public async Task RunAsync(CancellationToken token)
     {
-        await LoadCacheAsync(token);
+        LoadCache();
         var delay = TimeSpan.FromSeconds(5);
         while (!token.IsCancellationRequested)
         {
@@ -48,7 +49,8 @@ public sealed class HaWebSocketClient
             {
                 Log.Warning(ex, "Home Assistant connection lost; retrying");
                 _status.Update(x => x with { HaConnected = false });
-                var jitter = Random.Shared.NextDouble() * 0.3 + 0.85;
+                double jitter;
+                lock (Jitter) jitter = Jitter.NextDouble() * 0.3 + 0.85;
                 await Task.Delay(TimeSpan.FromMilliseconds(delay.TotalMilliseconds * jitter), token);
                 delay = TimeSpan.FromSeconds(Math.Min(300, delay.TotalSeconds * 2));
             }
@@ -92,22 +94,34 @@ public sealed class HaWebSocketClient
         await SendAsync(ProtocolCodec.SubscribeStateChanges(NextId()), token);
         await SendAsync(ProtocolCodec.Heartbeat(NextId(), _config.Kid, _config.Device, ThisAssembly.Version), token);
         await FlushAsync(token);
-        using var heartbeat = new PeriodicTimer(TimeSpan.FromMinutes(5));
+        using var heartbeatCancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
         var heartbeatTask = Task.Run(async () =>
         {
-            while (await heartbeat.WaitForNextTickAsync(token))
-                await SendAsync(ProtocolCodec.Heartbeat(NextId(), _config.Kid, _config.Device, ThisAssembly.Version), token);
-        }, token);
+            while (!heartbeatCancellation.IsCancellationRequested)
+            {
+                await Task.Delay(TimeSpan.FromMinutes(5), heartbeatCancellation.Token);
+                await SendAsync(ProtocolCodec.Heartbeat(NextId(), _config.Kid, _config.Device, ThisAssembly.Version),
+                    heartbeatCancellation.Token);
+            }
+        }, heartbeatCancellation.Token);
 
-        while (_socket.State == WebSocketState.Open && !token.IsCancellationRequested)
+        try
         {
-            var message = await ReceiveAsync(token) ?? throw new WebSocketException("Socket closed");
-            HandleUsageResult(message);
-            HandleStateEvent(message);
-            if (ProtocolCodec.IsRulesVersionEvent(message)) await RefreshRulesAsync(token);
-            await FlushAsync(token);
+            while (_socket.State == WebSocketState.Open && !token.IsCancellationRequested)
+            {
+                var message = await ReceiveAsync(token) ?? throw new WebSocketException("Socket closed");
+                HandleUsageResult(message);
+                HandleStateEvent(message);
+                if (ProtocolCodec.IsRulesVersionEvent(message)) await RefreshRulesAsync(token);
+                await FlushAsync(token);
+            }
         }
-        await heartbeatTask;
+        finally
+        {
+            heartbeatCancellation.Cancel();
+            try { await heartbeatTask; }
+            catch (OperationCanceledException) { }
+        }
     }
 
     private async Task RefreshRulesIfStaleAsync(CancellationToken token)
@@ -133,7 +147,7 @@ public sealed class HaWebSocketClient
         var response = message["result"]?["response"] ?? message["result"];
         if (response is null) return;
         Rules = response.Deserialize<RulesMap>(ProtocolCodec.JsonOptions) ?? Rules;
-        await File.WriteAllTextAsync(_paths.RulesCacheFile, JsonSerializer.Serialize(Rules, ProtocolCodec.JsonOptions), token);
+        File.WriteAllText(_paths.RulesCacheFile, JsonSerializer.Serialize(Rules, ProtocolCodec.JsonOptions));
         _status.Update(x => x with { RulesVersion = Rules.Version });
         RulesChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -162,12 +176,12 @@ public sealed class HaWebSocketClient
         var limitPrefix = $"number.gnomon_limit_{_config.Kid}_";
         if (entityId.StartsWith(usedPrefix, StringComparison.Ordinal))
         {
-            var category = entityId[usedPrefix.Length..];
+            var category = entityId.Substring(usedPrefix.Length);
             if (!category.Contains('_') || Rules.Categories.Any(x => x.Id == category))
                 _status.SetCategoryState(category, used: value);
         }
         else if (entityId.StartsWith(limitPrefix, StringComparison.Ordinal))
-            _status.SetCategoryState(entityId[limitPrefix.Length..], limit: value);
+            _status.SetCategoryState(entityId.Substring(limitPrefix.Length), limit: value);
     }
 
     private async Task FlushAsync(CancellationToken token)
@@ -197,12 +211,12 @@ public sealed class HaWebSocketClient
         _usageInFlight = null;
     }
 
-    private async Task LoadCacheAsync(CancellationToken token)
+    private void LoadCache()
     {
         try
         {
             if (File.Exists(_paths.RulesCacheFile))
-                Rules = JsonSerializer.Deserialize<RulesMap>(await File.ReadAllTextAsync(_paths.RulesCacheFile, token), ProtocolCodec.JsonOptions) ?? Rules;
+                Rules = JsonSerializer.Deserialize<RulesMap>(File.ReadAllText(_paths.RulesCacheFile), ProtocolCodec.JsonOptions) ?? Rules;
             _status.Update(x => x with { RulesVersion = Rules.Version });
         }
         catch (Exception ex) { Log.Warning(ex, "Rules cache could not be loaded"); }
@@ -217,7 +231,7 @@ public sealed class HaWebSocketClient
         try
         {
             var bytes = Encoding.UTF8.GetBytes(message);
-            await _socket.SendAsync(bytes, WebSocketMessageType.Text, true, token);
+            await _socket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, token);
         }
         finally { _sendLock.Release(); }
     }
@@ -227,10 +241,10 @@ public sealed class HaWebSocketClient
         if (_socket is null) return null;
         using var stream = new MemoryStream();
         var buffer = new byte[16 * 1024];
-        ValueWebSocketReceiveResult result;
+        WebSocketReceiveResult result;
         do
         {
-            result = await _socket.ReceiveAsync(buffer.AsMemory(), token);
+            result = await _socket.ReceiveAsync(new ArraySegment<byte>(buffer), token);
             if (result.MessageType == WebSocketMessageType.Close) return null;
             stream.Write(buffer, 0, result.Count);
         } while (!result.EndOfMessage);
@@ -240,5 +254,5 @@ public sealed class HaWebSocketClient
 
 internal static class ThisAssembly
 {
-    public static string Version => typeof(ThisAssembly).Assembly.GetName().Version?.ToString(3) ?? "1.0.0";
+    public static string Version => typeof(ThisAssembly).Assembly.GetName().Version?.ToString(3) ?? "0.1.0";
 }
