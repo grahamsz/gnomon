@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 import logging
 from typing import Any
 
+from homeassistant.components import persistent_notification
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_call_later, async_track_point_in_time
@@ -250,7 +251,7 @@ class GnomonCoordinator:
             self._unknown_timer()
             self._unknown_timer = None
         if not self.unknowns:
-            self.hass.components.persistent_notification.async_dismiss("gnomon_unclassified")
+            persistent_notification.async_dismiss(self.hass, "gnomon_unclassified")
             return
         oldest = min(datetime.fromisoformat(item.first_seen) for item in self.unknowns.values())
         due = oldest + timedelta(hours=UNKNOWN_NOTIFICATION_HOURS)
@@ -258,7 +259,8 @@ class GnomonCoordinator:
 
         async def notify(_now: Any) -> None:
             if self.unknowns:
-                self.hass.components.persistent_notification.async_create(
+                persistent_notification.async_create(
+                    self.hass,
                     f"{len(self.unknowns)} unclassified item(s) have been waiting for review.",
                     title="Gnomon classification inbox", notification_id="gnomon_unclassified",
                 )

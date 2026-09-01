@@ -29,6 +29,12 @@ async def test_usage_total_limit_event(hass: HomeAssistant):
     assert events == [{"kid": "alex", "category": "games", "limit": 10, "used": 12}]
 
 
+async def test_setup_dismisses_stale_notification(hass: HomeAssistant):
+    with patch("custom_components.gnomon.coordinator.persistent_notification.async_dismiss") as dismiss:
+        await _setup(hass)
+    dismiss.assert_called_once_with(hass, "gnomon_unclassified")
+
+
 async def test_unknown_assignment_bumps_rules(hass: HomeAssistant):
     coordinator = await _setup(hass)
     await hass.services.async_call(DOMAIN, "report_unknown", {
