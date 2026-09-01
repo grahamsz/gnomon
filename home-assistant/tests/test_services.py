@@ -25,6 +25,7 @@ async def test_usage_total_limit_event(hass: HomeAssistant):
     await hass.services.async_call(DOMAIN, "report_usage", {
         "kid": "alex", "device": "pc", "category": "games", "minutes": 12
     }, blocking=True)
+    await hass.async_block_till_done()
     assert coordinator.total("alex", "games") == 12
     assert events == [{"kid": "alex", "category": "games", "limit": 10, "used": 12}]
 
