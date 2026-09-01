@@ -7,6 +7,7 @@
   },
   "options": {
     "step": {
+      "init": {"menu_options": {"add_kid": "Add a kid", "add_category": "Add a category", "rename_category": "Rename a category", "remove_category": "Remove a category", "add_rule": "Add a rule", "remove_rule": "Remove a rule"}},
       "add_kid": {"title": "Add a kid", "data": {"kid_name": "Display name", "kid_id": "Kid ID"}},
       "add_category": {"title": "Add a category", "data": {"id": "ID", "name": "Name", "idle_timeout_min": "Idle timeout", "media_counts_as_active": "Media counts as active"}},
       "rename_category": {"title": "Rename a category", "data": {"category": "Category", "name": "New display name"}},
