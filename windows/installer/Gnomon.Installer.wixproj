@@ -5,7 +5,8 @@
     <Version Condition="'$(Version)' == ''">0.1.0</Version>
     <OutputName>GnomonAgent-$(Version)-x64</OutputName>
     <AgentPublishDir Condition="'$(AgentPublishDir)' == ''">..\src\Gnomon.Agent\bin\Release\net48\publish</AgentPublishDir>
-    <DefineConstants>Version=$(Version);AgentPublishDir=$(AgentPublishDir)</DefineConstants>
+    <BrowserExtensionDir Condition="'$(BrowserExtensionDir)' == ''">..\browser-extension</BrowserExtensionDir>
+    <DefineConstants>Version=$(Version);AgentPublishDir=$(AgentPublishDir);BrowserExtensionDir=$(BrowserExtensionDir)</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="WixToolset.UI.wixext" Version="5.0.2" />

@@ -45,6 +45,15 @@
                          Name="GnomonAgent" Value="&quot;[INSTALLDIR]Gnomon.Agent.exe&quot;"
                          Type="string" KeyPath="yes" />
         </Component>
+        <Directory Id="BrowserCompanionDir" Name="Browser Companion">
+          <Component Id="BrowserCompanionFiles" Guid="F6AF47C7-57B2-48F3-8A43-4B4309089776" Bitness="always64">
+            <File Id="BrowserManifest" Source="$(var.BrowserExtensionDir)\manifest.json" KeyPath="yes" />
+            <File Id="BrowserBackground" Source="$(var.BrowserExtensionDir)\background.js" />
+            <File Id="BrowserPopupHtml" Source="$(var.BrowserExtensionDir)\popup.html" />
+            <File Id="BrowserPopupScript" Source="$(var.BrowserExtensionDir)\popup.js" />
+            <File Id="BrowserPopupStyles" Source="$(var.BrowserExtensionDir)\popup.css" />
+          </Component>
+        </Directory>
       </Directory>
     </StandardDirectory>
 
@@ -64,6 +73,7 @@
 
     <Feature Id="MainFeature" Title="Gnomon Agent" Level="1">
       <ComponentRef Id="AgentBinary"/><ComponentRef Id="RunKey"/>
+      <ComponentRef Id="BrowserCompanionFiles"/>
       <ComponentRef Id="ConfigData"/><ComponentRef Id="LogsDirectory"/>
     </Feature>
     <ui:WixUI Id="WixUI_Minimal" />

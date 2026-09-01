@@ -10,6 +10,7 @@ public sealed class TrayController : IDisposable
     private readonly Icon? _appIcon;
     private readonly AgentStatus _status;
     private MainWindow? _window;
+    private BrowserSetupWindow? _browserSetup;
     public event EventHandler? ExitRequested;
 
     public TrayController(AgentStatus status)
@@ -23,6 +24,7 @@ public sealed class TrayController : IDisposable
         var menu = new ContextMenuStrip();
         menu.Items.Add("Open", null, (_, _) => Open());
         menu.Items.Add("Configure…", null, (_, _) => Configure());
+        menu.Items.Add("Set up Chrome companion…", null, (_, _) => OpenBrowserSetup());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Exit", null, (_, _) => ExitRequested?.Invoke(this, EventArgs.Empty));
         _icon.ContextMenuStrip = menu; _icon.DoubleClick += (_, _) => Open();
@@ -53,6 +55,13 @@ public sealed class TrayController : IDisposable
         }
     }
 
+    private void OpenBrowserSetup()
+    {
+        if (_browserSetup is null || _browserSetup.IsDisposed) _browserSetup = new BrowserSetupWindow();
+        _browserSetup.Show();
+        _browserSetup.Activate();
+    }
+
     private void Changed(object? sender, EventArgs e)
     {
         var status = _status.Snapshot;
@@ -67,6 +76,7 @@ public sealed class TrayController : IDisposable
     {
         _status.Changed -= Changed;
         _window?.Dispose();
+        _browserSetup?.Dispose();
         _icon.Visible = false;
         _icon.Dispose();
         _appIcon?.Dispose();

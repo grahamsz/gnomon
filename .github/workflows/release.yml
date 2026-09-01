@@ -247,6 +247,11 @@ jobs:
           $published = Get-ChildItem $env:WINDOWS_PUBLISH_DIR -File | Select-Object -ExpandProperty Name
           $missing = $published | Where-Object { $_ -notin $packaged }
           if ($missing) { throw "Published files are missing from the MSI: $($missing -join ', ')" }
+          $browserFiles = @("manifest.json", "background.js", "popup.html", "popup.js", "popup.css")
+          $missingBrowserFiles = $browserFiles | Where-Object { $_ -notin $packaged }
+          if ($missingBrowserFiles) {
+            throw "Browser companion files are missing from the MSI: $($missingBrowserFiles -join ', ')"
+          }
       - name: Sign Windows MSI
         if: steps.windows_signing.outputs.signed == 'true'
         shell: pwsh

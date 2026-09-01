@@ -193,7 +193,7 @@ A proper MSI is a 0.1 deliverable. Use **WiX Toolset v4+** with the `WixToolset.
 - Code signing: optional `signtool` post-build step gated on a `$(SignCertificate)` property; document the self-signed dev flow and the expected SmartScreen warning for unsigned builds
 
 ### 11.5 Out of the MSI's scope
-- The browser extension is **not** installed by the MSI; `windows/browser-extension/README.md` covers manual sideload (developer mode) for 0.1, with Chrome Web Store / Edge Add-ons publishing as the 0.2 path (which would then allow force-install via browser policy)
+- The MSI installs the browser companion files and exposes a guided setup from the tray menu. Chrome and Edge still require the user to approve the unpacked extension in Developer mode for 0.1; Chrome Web Store / Edge Add-ons publishing is the 0.2 path (which would then allow managed installation via browser policy).
 
 ## 12. 0.2 seams (design for, do not build)
 

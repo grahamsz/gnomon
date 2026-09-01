@@ -16,13 +16,14 @@ public sealed class ConfigurationWindow : System.Windows.Forms.Form
     private readonly System.Windows.Forms.Label _status = new();
     private readonly System.Windows.Forms.Button _save = new();
     private readonly System.Windows.Forms.Button _cancel = new();
+    private readonly System.Windows.Forms.Button _browserSetup = new();
 
     public ConfigurationWindow(AgentPaths paths, AgentConfig config)
     {
         _paths = paths;
         Text = "Set up Gnomon";
-        ClientSize = new Size(560, 610);
-        MinimumSize = MaximumSize = SizeFromClientSize(ClientSize);
+        ClientSize = new Size(560, 650);
+        MinimumSize = SizeFromClientSize(new Size(520, 650));
         StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
         Font = new Font("Segoe UI", 9F);
         AutoScaleMode = System.Windows.Forms.AutoScaleMode.Dpi;
@@ -44,11 +45,17 @@ public sealed class ConfigurationWindow : System.Windows.Forms.Form
         var root = new System.Windows.Forms.TableLayoutPanel
         {
             Dock = System.Windows.Forms.DockStyle.Fill,
-            Padding = new System.Windows.Forms.Padding(28, 24, 28, 22),
+            Padding = new System.Windows.Forms.Padding(28, 22, 28, 18),
             ColumnCount = 1,
-            RowCount = 10,
+            RowCount = 9,
         };
         root.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100));
+        for (var row = 0; row < 7; row++)
+        {
+            root.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.AutoSize));
+        }
+        root.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100));
+        root.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.AutoSize));
 
         var title = new System.Windows.Forms.Label
         {
@@ -58,7 +65,7 @@ public sealed class ConfigurationWindow : System.Windows.Forms.Form
             Margin = new System.Windows.Forms.Padding(0, 0, 0, 4),
         };
         var subtitle = Help("Tell this Windows agent where to report screen time.");
-        subtitle.Margin = new System.Windows.Forms.Padding(0, 0, 0, 18);
+        subtitle.Margin = new System.Windows.Forms.Padding(0, 0, 0, 14);
         root.Controls.Add(title);
         root.Controls.Add(subtitle);
         root.Controls.Add(Field("Home Assistant address", _haAddress,
@@ -71,7 +78,7 @@ public sealed class ConfigurationWindow : System.Windows.Forms.Form
             Dock = System.Windows.Forms.DockStyle.Top,
             AutoSize = true,
             ColumnCount = 2,
-            Margin = new System.Windows.Forms.Padding(0, 0, 0, 14),
+            Margin = new System.Windows.Forms.Padding(0, 0, 0, 10),
         };
         identifiers.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 50));
         identifiers.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 50));
@@ -96,21 +103,15 @@ public sealed class ConfigurationWindow : System.Windows.Forms.Form
 
         var spacer = new System.Windows.Forms.Panel { Dock = System.Windows.Forms.DockStyle.Fill };
         root.Controls.Add(spacer);
-        root.RowStyles.Add(new System.Windows.Forms.RowStyle());
-        root.RowStyles.Add(new System.Windows.Forms.RowStyle());
-        root.RowStyles.Add(new System.Windows.Forms.RowStyle());
-        root.RowStyles.Add(new System.Windows.Forms.RowStyle());
-        root.RowStyles.Add(new System.Windows.Forms.RowStyle());
-        root.RowStyles.Add(new System.Windows.Forms.RowStyle());
-        root.RowStyles.Add(new System.Windows.Forms.RowStyle());
-        root.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100));
 
         var buttons = new System.Windows.Forms.FlowLayoutPanel
         {
-            Dock = System.Windows.Forms.DockStyle.Fill,
+            Dock = System.Windows.Forms.DockStyle.Top,
             AutoSize = true,
+            AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink,
             FlowDirection = System.Windows.Forms.FlowDirection.RightToLeft,
             WrapContents = false,
+            Margin = new System.Windows.Forms.Padding(0, 12, 0, 0),
         };
         _save.Text = "Save and start";
         _save.AutoSize = true;
@@ -120,7 +121,12 @@ public sealed class ConfigurationWindow : System.Windows.Forms.Form
         _cancel.AutoSize = true;
         _cancel.Padding = new System.Windows.Forms.Padding(10, 5, 10, 5);
         _cancel.Click += (_, _) => Close();
+        _browserSetup.Text = "Set up Chrome…";
+        _browserSetup.AutoSize = true;
+        _browserSetup.Padding = new System.Windows.Forms.Padding(10, 5, 10, 5);
+        _browserSetup.Click += (_, _) => new BrowserSetupWindow().ShowDialog(this);
         buttons.Controls.Add(_save);
+        buttons.Controls.Add(_browserSetup);
         buttons.Controls.Add(_cancel);
         root.Controls.Add(buttons);
 
@@ -139,7 +145,7 @@ public sealed class ConfigurationWindow : System.Windows.Forms.Form
             Dock = System.Windows.Forms.DockStyle.Top,
             AutoSize = true,
             ColumnCount = 1,
-            Margin = new System.Windows.Forms.Padding(0, 0, 0, 14),
+            Margin = new System.Windows.Forms.Padding(0, 0, 0, 10),
         };
         panel.Controls.Add(new System.Windows.Forms.Label
         {

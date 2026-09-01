@@ -31,3 +31,7 @@ whose user does not match `windowsUser`.
 Run `Gnomon.Agent.exe --configure` to open the guided setup window. A bare
 `homeassistant.local` address is normalized to
 `ws://homeassistant.local:8123/api/websocket`.
+
+The MSI also installs the Chrome companion files under `Browser Companion`.
+Choose **Set up Chrome companion** from the Gnomon tray menu to open Chrome's
+extensions page and the exact folder to select with **Load unpacked**.
