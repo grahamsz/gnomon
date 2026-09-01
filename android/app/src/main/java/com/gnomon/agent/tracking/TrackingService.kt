@@ -116,7 +116,7 @@ class TrackingService : Service() {
     }
     private fun notification(text: String): Notification {
         val intent = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
-        return NotificationCompat.Builder(this, CHANNEL).setSmallIcon(android.R.drawable.ic_menu_recent_history)
+        return NotificationCompat.Builder(this, CHANNEL).setSmallIcon(com.gnomon.agent.R.drawable.ic_gnomon_notification)
             .setContentTitle("Gnomon screen time").setContentText(text).setOngoing(true).setContentIntent(intent).build()
     }
     private fun createChannel() = getSystemService(NotificationManager::class.java).createNotificationChannel(

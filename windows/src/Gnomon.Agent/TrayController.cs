@@ -6,6 +6,7 @@ namespace Gnomon.Agent;
 public sealed class TrayController : IDisposable
 {
     private readonly NotifyIcon _icon;
+    private readonly Icon? _appIcon;
     private readonly AgentStatus _status;
     private MainWindow? _window;
     public event EventHandler? ExitRequested;
@@ -13,9 +14,10 @@ public sealed class TrayController : IDisposable
     public TrayController(AgentStatus status)
     {
         _status = status;
+        _appIcon = Icon.ExtractAssociatedIcon(Environment.ProcessPath ?? System.Windows.Forms.Application.ExecutablePath);
         _icon = new NotifyIcon
         {
-            Icon = SystemIcons.Information, Visible = true, Text = "Gnomon · starting"
+            Icon = _appIcon ?? SystemIcons.Information, Visible = true, Text = "Gnomon · starting"
         };
         var menu = new ContextMenuStrip();
         menu.Items.Add("Open", null, (_, _) => Open());
@@ -37,5 +39,5 @@ public sealed class TrayController : IDisposable
         _icon.Text = tooltip[..Math.Min(63, tooltip.Length)];
     }
 
-    public void Dispose() { _status.Changed -= Changed; _icon.Visible = false; _icon.Dispose(); }
+    public void Dispose() { _status.Changed -= Changed; _icon.Visible = false; _icon.Dispose(); _appIcon?.Dispose(); }
 }

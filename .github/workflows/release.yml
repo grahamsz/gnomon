@@ -1,0 +1,315 @@
+name: Build and release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*.*.*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref == 'refs/heads/main' }}
+
+jobs:
+  metadata:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      display_version: ${{ steps.release.outputs.display_version }}
+      android_version_code: ${{ steps.release.outputs.android_version_code }}
+      asset_suffix: ${{ steps.release.outputs.asset_suffix }}
+      channel: ${{ steps.release.outputs.channel }}
+      tag: ${{ steps.release.outputs.tag }}
+      publish: ${{ steps.release.outputs.publish }}
+    steps:
+      - id: release
+        name: Resolve release channel and version
+        shell: bash
+        run: |
+          set -euo pipefail
+          short_sha="${GITHUB_SHA:0:7}"
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            version="${GITHUB_REF_NAME#v}"
+            if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "Production tags must have the form vX.Y.Z." >&2
+              exit 1
+            fi
+            IFS=. read -r major minor patch <<< "$version"
+            if (( major > 255 || minor > 255 || patch > 65535 )); then
+              echo "Windows MSI versions require major/minor <= 255 and patch <= 65535." >&2
+              exit 1
+            fi
+            display_version="$version"
+            asset_suffix="$version"
+            channel="production"
+            tag="$GITHUB_REF_NAME"
+            publish="true"
+          elif [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            version="0.0.${GITHUB_RUN_NUMBER}"
+            display_version="0.0.0-ci.${GITHUB_RUN_NUMBER}+${short_sha}"
+            asset_suffix="ci-${GITHUB_RUN_NUMBER}-${short_sha}"
+            channel="ci"
+            tag=""
+            publish="false"
+          else
+            version="0.0.${GITHUB_RUN_NUMBER}"
+            display_version="0.0.0-edge.${GITHUB_RUN_NUMBER}+${short_sha}"
+            asset_suffix="edge"
+            channel="edge"
+            tag="edge"
+            publish="true"
+          fi
+          {
+            echo "version=$version"
+            echo "display_version=$display_version"
+            echo "android_version_code=$GITHUB_RUN_NUMBER"
+            echo "asset_suffix=$asset_suffix"
+            echo "channel=$channel"
+            echo "tag=$tag"
+            echo "publish=$publish"
+          } >> "$GITHUB_OUTPUT"
+
+  home-assistant:
+    needs: metadata
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: home-assistant/requirements-test.txt
+      - name: Install test dependencies
+        run: python -m pip install -r home-assistant/requirements-test.txt
+      - name: Test integration
+        working-directory: home-assistant
+        run: python -m pytest
+      - name: Package integration for HACS
+        env:
+          PACKAGE_VERSION: ${{ needs.metadata.outputs.version }}
+          CHANNEL: ${{ needs.metadata.outputs.channel }}
+          ASSET_SUFFIX: ${{ needs.metadata.outputs.asset_suffix }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage="$RUNNER_TEMP/gnomon-ha"
+          mkdir -p "$stage" dist
+          cp -R home-assistant/custom_components/gnomon/. "$stage/"
+          jq --arg version "$PACKAGE_VERSION" '.version = $version' "$stage/manifest.json" > "$stage/manifest.tmp"
+          mv "$stage/manifest.tmp" "$stage/manifest.json"
+          if [[ "$CHANNEL" == "production" ]]; then
+            asset="gnomon.zip"
+          else
+            asset="Gnomon-${ASSET_SUFFIX}-home-assistant.zip"
+          fi
+          (cd "$stage" && zip -qr "$GITHUB_WORKSPACE/dist/$asset" .)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: home-assistant-package
+          path: dist/*
+          if-no-files-found: error
+
+  windows:
+    needs: metadata
+    runs-on: windows-latest
+    env:
+      BUILD_VERSION: ${{ needs.metadata.outputs.version }}
+      ASSET_SUFFIX: ${{ needs.metadata.outputs.asset_suffix }}
+      WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+      WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+      - name: Test Windows agent
+        run: dotnet test windows/Gnomon.sln -c Release
+      - name: Test browser companion
+        working-directory: windows/browser-extension
+        run: npm test
+      - name: Prepare optional Windows signing certificate
+        id: windows_signing
+        shell: pwsh
+        run: |
+          $hasCertificate = -not [string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_BASE64)
+          $hasPassword = -not [string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_PASSWORD)
+          if ($hasCertificate -xor $hasPassword) {
+            throw "Set both WINDOWS_CERTIFICATE_BASE64 and WINDOWS_CERTIFICATE_PASSWORD, or neither."
+          }
+          if (-not $hasCertificate) {
+            Write-Output "::warning::Windows artifacts will be unsigned and may show SmartScreen warnings."
+            "signed=false" | Out-File $env:GITHUB_OUTPUT -Append
+            exit 0
+          }
+          $certificate = Join-Path $env:RUNNER_TEMP "gnomon-signing.pfx"
+          [IO.File]::WriteAllBytes($certificate, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE_BASE64))
+          $signTool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" |
+            Sort-Object FullName | Select-Object -Last 1 -ExpandProperty FullName
+          if (-not $signTool) { throw "signtool.exe was not found on the runner." }
+          "WINDOWS_CERTIFICATE_PATH=$certificate" | Out-File $env:GITHUB_ENV -Append
+          "SIGNTOOL_PATH=$signTool" | Out-File $env:GITHUB_ENV -Append
+          "signed=true" | Out-File $env:GITHUB_OUTPUT -Append
+      - name: Publish Windows agent
+        shell: pwsh
+        run: |
+          $publish = Join-Path $env:RUNNER_TEMP "gnomon-win-x64"
+          dotnet publish windows/src/Gnomon.Agent/Gnomon.Agent.csproj -c Release -r win-x64 --self-contained `
+            -p:PublishSingleFile=true "-p:Version=$env:BUILD_VERSION" -o $publish
+          "WINDOWS_PUBLISH_DIR=$publish" | Out-File $env:GITHUB_ENV -Append
+      - name: Sign Windows executable
+        if: steps.windows_signing.outputs.signed == 'true'
+        shell: pwsh
+        run: |
+          & $env:SIGNTOOL_PATH sign /fd SHA256 /f $env:WINDOWS_CERTIFICATE_PATH `
+            /p $env:WINDOWS_CERTIFICATE_PASSWORD /tr http://timestamp.digicert.com /td SHA256 `
+            (Join-Path $env:WINDOWS_PUBLISH_DIR "Gnomon.Agent.exe")
+      - name: Build Windows MSI
+        shell: pwsh
+        run: |
+          dotnet build windows/installer/Gnomon.Installer.wixproj -c Release `
+            "-p:Version=$env:BUILD_VERSION" "-p:AgentPublishDir=$env:WINDOWS_PUBLISH_DIR" `
+            -p:SuppressValidation=true
+      - name: Sign Windows MSI
+        if: steps.windows_signing.outputs.signed == 'true'
+        shell: pwsh
+        run: |
+          $msi = Get-ChildItem windows/installer/bin -Recurse -Filter *.msi |
+            Sort-Object LastWriteTime | Select-Object -Last 1 -ExpandProperty FullName
+          & $env:SIGNTOOL_PATH sign /fd SHA256 /f $env:WINDOWS_CERTIFICATE_PATH `
+            /p $env:WINDOWS_CERTIFICATE_PASSWORD /tr http://timestamp.digicert.com /td SHA256 $msi
+      - name: Collect Windows artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Compress-Archive -Path (Join-Path $env:WINDOWS_PUBLISH_DIR "*") `
+            -DestinationPath "dist/GnomonAgent-$env:ASSET_SUFFIX-win-x64.zip"
+          $msi = Get-ChildItem windows/installer/bin -Recurse -Filter *.msi |
+            Sort-Object LastWriteTime | Select-Object -Last 1 -ExpandProperty FullName
+          Copy-Item $msi "dist/GnomonAgent-$env:ASSET_SUFFIX-win-x64.msi"
+          $extensionFiles = @(
+            "windows/browser-extension/manifest.json",
+            "windows/browser-extension/background.js",
+            "windows/browser-extension/popup.css",
+            "windows/browser-extension/popup.html",
+            "windows/browser-extension/popup.js",
+            "windows/browser-extension/README.md"
+          )
+          Compress-Archive -Path $extensionFiles `
+            -DestinationPath "dist/GnomonBrowserCompanion-$env:ASSET_SUFFIX.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-packages
+          path: dist/*
+          if-no-files-found: error
+
+  android:
+    needs: metadata
+    runs-on: ubuntu-latest
+    env:
+      DISPLAY_VERSION: ${{ needs.metadata.outputs.display_version }}
+      ANDROID_VERSION_CODE: ${{ needs.metadata.outputs.android_version_code }}
+      ASSET_SUFFIX: ${{ needs.metadata.outputs.asset_suffix }}
+      CHANNEL: ${{ needs.metadata.outputs.channel }}
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Test Android agent
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew test
+      - name: Prepare Android signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          values=("$ANDROID_KEYSTORE_BASE64" "$ANDROID_KEYSTORE_PASSWORD" "$ANDROID_KEY_ALIAS" "$ANDROID_KEY_PASSWORD")
+          present=0
+          for value in "${values[@]}"; do [[ -n "$value" ]] && present=$((present + 1)); done
+          if (( present != 0 && present != 4 )); then
+            echo "Set all four Android signing secrets, or none of them." >&2
+            exit 1
+          fi
+          if (( present == 4 )); then
+            keystore="$RUNNER_TEMP/gnomon-release.jks"
+            printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore"
+            echo "ANDROID_KEYSTORE_PATH=$keystore" >> "$GITHUB_ENV"
+            echo "ANDROID_SIGNED=true" >> "$GITHUB_ENV"
+          elif [[ "$CHANNEL" == "production" ]]; then
+            echo "Production Android builds require the four Android signing secrets documented in docs/releasing.md." >&2
+            exit 1
+          else
+            echo "ANDROID_SIGNED=false" >> "$GITHUB_ENV"
+            echo "::warning::Using the runner debug key. This edge APK cannot reliably upgrade a previous edge APK."
+          fi
+      - name: Build Android packages
+        working-directory: android
+        shell: bash
+        run: |
+          set -euo pipefail
+          version_args=("-PgnomonVersionCode=$ANDROID_VERSION_CODE" "-PgnomonVersionName=$DISPLAY_VERSION")
+          if [[ "$ANDROID_SIGNED" == "true" ]]; then
+            ./gradlew assembleRelease bundleRelease "${version_args[@]}"
+          else
+            ./gradlew assembleDebug "${version_args[@]}"
+          fi
+      - name: Collect Android artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          if [[ "$ANDROID_SIGNED" == "true" ]]; then
+            cp android/app/build/outputs/apk/release/app-release.apk "dist/Gnomon-${ASSET_SUFFIX}-android.apk"
+            cp android/app/build/outputs/bundle/release/app-release.aab "dist/Gnomon-${ASSET_SUFFIX}-android.aab"
+          else
+            cp android/app/build/outputs/apk/debug/app-debug.apk "dist/Gnomon-${ASSET_SUFFIX}-android.apk"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-packages
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    needs: [metadata, home-assistant, windows, android]
+    if: needs.metadata.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.metadata.outputs.tag }}
+          CHANNEL: ${{ needs.metadata.outputs.channel }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ls -al dist
+          if [[ "$CHANNEL" == "edge" ]]; then
+            gh release delete "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes || true
+            gh release create "$RELEASE_TAG" dist/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "Gnomon edge" --prerelease \
+              --notes "Cutting-edge build from ${GITHUB_SHA}. Built automatically from main; it may be unstable."
+          elif gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" dist/* --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$RELEASE_TAG" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag \
+              --title "Gnomon $RELEASE_TAG" --generate-notes
+          fi

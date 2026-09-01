@@ -15,6 +15,25 @@ locking, overlays, stealth mode, or process control.
 Each component has its own README with setup and build instructions. The binding
 product specifications live under `docs/specs/`.
 
+## Downloads and release channels
+
+GitHub Actions builds Home Assistant, Windows, and Android together. Every push
+to `main` refreshes the **edge** prerelease; tags such as `v1.0.0` create a
+versioned **production** release. Windows artifacts include an MSI, portable ZIP,
+and browser companion. Android releases include an APK and, for signed builds,
+an AAB.
+
+Production Android releases require repository signing secrets. See
+[`docs/releasing.md`](docs/releasing.md) for signing, tagging, and release details.
+
+## Install in Home Assistant with HACS
+
+After the first production release exists, add
+`https://github.com/grahamsz/gnomon` to HACS as a custom **Integration** repository,
+download Gnomon, restart Home Assistant, then add **Gnomon** from
+**Settings → Devices & services**. The complete setup sequence is in
+[`docs/releasing.md`](docs/releasing.md#add-gnomon-to-hacs-and-home-assistant).
+
 ## Local development environment
 
 The required SDKs are installed under the ignored `.tools/` directory and the
