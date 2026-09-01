@@ -169,9 +169,10 @@ jobs:
         run: |
           $publish = Join-Path $env:RUNNER_TEMP "gnomon-win-x64"
           dotnet publish windows/src/Gnomon.Agent/Gnomon.Agent.csproj -c Release -r win-x64 --self-contained `
-            -p:PublishSingleFile=true "-p:Version=$env:BUILD_VERSION" -o $publish
+            -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true `
+            -p:DebugType=None -p:DebugSymbols=false "-p:Version=$env:BUILD_VERSION" -o $publish
           "WINDOWS_PUBLISH_DIR=$publish" | Out-File $env:GITHUB_ENV -Append
-      - name: Smoke-test Windows service entry point
+      - name: Smoke-test Windows entry points
         shell: pwsh
         run: |
           $executable = Join-Path $env:WINDOWS_PUBLISH_DIR "Gnomon.Agent.exe"
@@ -189,6 +190,14 @@ jobs:
               $serviceProcess.WaitForExit()
             }
           }
+          $desktopProcess = Start-Process -FilePath $executable -WindowStyle Hidden -PassThru
+          if (-not $desktopProcess.WaitForExit(10000)) {
+            Stop-Process -Id $desktopProcess.Id -Force
+            throw "The Windows desktop process did not complete its unconfigured-user startup check."
+          }
+          if ($desktopProcess.ExitCode -ne 0) {
+            throw "The Windows desktop process exited with code $($desktopProcess.ExitCode)."
+          }
       - name: Sign Windows executable
         if: steps.windows_signing.outputs.signed == 'true'
         shell: pwsh
@@ -202,6 +211,24 @@ jobs:
           dotnet build windows/installer/Gnomon.Installer.wixproj -c Release `
             "-p:Version=$env:BUILD_VERSION" "-p:AgentPublishDir=$env:WINDOWS_PUBLISH_DIR" `
             -p:SuppressValidation=true
+      - name: Verify Windows MSI payload
+        shell: pwsh
+        run: |
+          $msi = Get-ChildItem windows/installer/bin -Recurse -Filter *.msi |
+            Sort-Object LastWriteTime | Select-Object -Last 1 -ExpandProperty FullName
+          $installer = New-Object -ComObject WindowsInstaller.Installer
+          $database = $installer.GetType().InvokeMember(
+            "OpenDatabase", "InvokeMethod", $null, $installer, @($msi, 0))
+          $view = $database.GetType().InvokeMember(
+            "OpenView", "InvokeMethod", $null, $database, @("SELECT ``FileName`` FROM ``File``"))
+          $view.GetType().InvokeMember("Execute", "InvokeMethod", $null, $view, $null) | Out-Null
+          $packaged = @()
+          while ($record = $view.GetType().InvokeMember("Fetch", "InvokeMethod", $null, $view, $null)) {
+            $packaged += $record.StringData(1).Split("|")[-1]
+          }
+          $published = Get-ChildItem $env:WINDOWS_PUBLISH_DIR -File | Select-Object -ExpandProperty Name
+          $missing = $published | Where-Object { $_ -notin $packaged }
+          if ($missing) { throw "Published files are missing from the MSI: $($missing -join ', ')" }
       - name: Sign Windows MSI
         if: steps.windows_signing.outputs.signed == 'true'
         shell: pwsh

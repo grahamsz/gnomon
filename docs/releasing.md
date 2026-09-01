@@ -77,9 +77,10 @@ branch or a tagged release directly from GitHub. The separately attached
 4. In Home Assistant, go to **Settings → Devices & services → Add integration** and select **Gnomon**.
 5. Enter the first child's display name and stable lowercase ID, such as `alex`.
 6. Create a Home Assistant long-lived access token from the user profile for each agent.
-7. Configure Android in its visible setup screen. For Windows, edit
-   `%ProgramData%\Gnomon\config.json`, then restart the `GnomonAgent` service.
+7. Configure Android in its visible setup screen. The interactive Windows MSI
+   opens Gnomon's guided configuration window after installation; for a silent
+   deployment, run `%ProgramFiles%\Gnomon\Gnomon.Agent.exe --configure` afterward.
 
 The Home Assistant WebSocket URL is normally
-`wss://homeassistant.local:8123/api/websocket`. The kid ID in each agent must
+`ws://homeassistant.local:8123/api/websocket`. The kid ID in each agent must
 match the ID configured in the integration; give every device its own device ID.

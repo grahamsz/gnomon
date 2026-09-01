@@ -1,8 +1,8 @@
 {
-  "haUrl": "wss://homeassistant.local:8123/api/websocket",
-  "haToken": "REPLACE_WITH_LONG_LIVED_ACCESS_TOKEN",
-  "kid": "alex",
-  "device": "pc",
-  "windowsUser": "Alex",
+  "haUrl": "ws://homeassistant.local:8123/api/websocket",
+  "haToken": "",
+  "kid": "",
+  "device": "",
+  "windowsUser": "",
   "extensionPort": 45981
 }

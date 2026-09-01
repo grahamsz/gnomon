@@ -1,4 +1,7 @@
 using System.IO;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Security.Principal;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Serilog;
@@ -15,9 +18,39 @@ internal static class Program
             return RunServiceAsync(args).GetAwaiter().GetResult();
         }
 
+        if (args.Contains("--configure", StringComparer.OrdinalIgnoreCase) && !IsAdministrator())
+        {
+            return RelaunchConfigurationAsAdministrator();
+        }
+
         var app = new App();
         app.InitializeComponent();
         return app.Run();
+    }
+
+    private static bool IsAdministrator()
+    {
+        using var identity = WindowsIdentity.GetCurrent();
+        return new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator);
+    }
+
+    private static int RelaunchConfigurationAsAdministrator()
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = Environment.ProcessPath ?? throw new InvalidOperationException("Executable path unavailable"),
+                Arguments = "--configure",
+                UseShellExecute = true,
+                Verb = "runas",
+            });
+            return 0;
+        }
+        catch (Win32Exception exception) when (exception.NativeErrorCode == 1223)
+        {
+            return 1223;
+        }
     }
 
     internal static void ConfigureLogging(AgentPaths paths)

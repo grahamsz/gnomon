@@ -34,11 +34,11 @@ The Home Assistant integration is specified in a companion document (`home-assis
 - **Session worker:** `Gnomon.Agent.exe` (default mode, runs as the logged-in user, no console). Owns: tracking core, classifier, activity state machine, extension HTTP listener, HA connection, delta queue, and the WPF tray UI (§7). Autostarted via HKLM Run key (§11); no-ops unless the session user matches `windowsUser`.
 - **Watchdog service:** `Gnomon.Agent.exe --service`, runs as **LocalSystem** via `UseWindowsService()`. One job: ensure the session worker is running in the configured user's session (session-change events + 60 s check; relaunch via `WTSGetActiveConsoleSessionId` + `CreateProcessAsUser`). No tracking, no HA connection.
 - Killing the worker stops tracking, but the watchdog relaunches it within 60 s — sufficient for v1 (hard anti-tamper is explicitly out of scope).
-- One self-contained single-file publish serves both modes (no .NET runtime prerequisite).
+- One compressed self-contained single-file publish serves both modes (no .NET runtime prerequisite).
 
 ```json
 {
-  "haUrl": "wss://homeassistant.local:8123/api/websocket",
+  "haUrl": "ws://homeassistant.local:8123/api/websocket",
   "haToken": "<long-lived access token>",
   "kid": "alex",
   "device": "pc",
@@ -175,7 +175,7 @@ A proper MSI is a v1 deliverable. Use **WiX Toolset v4+** with the `WixToolset.S
 - `MajorUpgrade` with a `DowngradeErrorMessage`; same-version reinstall allowed for repair
 
 ### 11.2 Input & layout
-- Input is the self-contained single-file publish: `dotnet publish -r win-x64 --self-contained -p:PublishSingleFile=true` — the MSI must have **no .NET runtime prerequisite**
+- Input is the compressed self-contained single-file publish: `dotnet publish -r win-x64 --self-contained -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false` — the MSI must have **no .NET runtime prerequisite**
 - `ProgramFiles64Folder\Gnomon\Gnomon.Agent.exe` (+ native deps if any)
 - `%CommonAppDataFolder%\Gnomon\` seeded with a template `config.json` (placeholders, commented) as a component with `NeverOverwrite="yes"` — **upgrades must never clobber configuration**
 - `%CommonAppDataFolder%\Gnomon\logs\` created with an ACL granting `BUILTIN\Users` Modify — the session worker runs as the kid (standard user) and must write logs
@@ -186,7 +186,12 @@ A proper MSI is a v1 deliverable. Use **WiX Toolset v4+** with the `WixToolset.S
 
 ### 11.4 Install/uninstall behavior
 - Silent install must work: `msiexec /i GnomonAgent-x.y.z-x64.msi /qn /l*v install.log`
-- Post-install: parent edits `config.json` (HA URL, token, kid, device, windowsUser), then `net start GnomonAgent` — document this exact sequence in `windows/installer/README.md`
+- Interactive install ends by launching an elevated, visible configuration window
+  that collects HA address, token, kid, device, and Windows user, writes
+  `config.json`, and restarts the service. Default the address field to
+  `homeassistant.local` and normalize it to
+  `ws://homeassistant.local:8123/api/websocket`. Silent deployment installs the
+  template without launching UI; the parent then runs `Gnomon.Agent.exe --configure`.
 - Uninstall: stop and remove the service, remove binaries and the Run key; **leave** `%ProgramData%\Gnomon\` (config, cache, logs) intact; never touch HA-side data
 - Code signing: optional `signtool` post-build step gated on a `$(SignCertificate)` property; document the self-signed dev flow and the expected SmartScreen warning for unsigned builds
 

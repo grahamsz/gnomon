@@ -7,7 +7,10 @@
     <AgentPublishDir Condition="'$(AgentPublishDir)' == ''">..\src\Gnomon.Agent\bin\Release\net8.0-windows10.0.19041.0\win-x64\publish</AgentPublishDir>
     <DefineConstants>Version=$(Version);AgentPublishDir=$(AgentPublishDir)</DefineConstants>
   </PropertyGroup>
-  <ItemGroup><PackageReference Include="WixToolset.Util.wixext" Version="5.0.2" /></ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="WixToolset.UI.wixext" Version="5.0.2" />
+    <PackageReference Include="WixToolset.Util.wixext" Version="5.0.2" />
+  </ItemGroup>
   <Target Name="SignMsi" AfterTargets="Build" Condition="'$(SignCertificate)' != ''">
     <Exec Command="signtool sign /fd SHA256 /f &quot;$(SignCertificate)&quot; /p &quot;$(SignPassword)&quot; &quot;$(TargetPath)&quot;" />
   </Target>

@@ -19,10 +19,14 @@ Install the .NET 8 SDK and WiX v4, then run:
 
 ```powershell
 dotnet test windows/Gnomon.sln
-dotnet publish windows/src/Gnomon.Agent/Gnomon.Agent.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true
+dotnet publish windows/src/Gnomon.Agent/Gnomon.Agent.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false
 dotnet build windows/installer/Gnomon.Installer.wixproj -c Release
 ```
 
 Configuration lives at `%ProgramData%\Gnomon\config.json`; cached rules and logs
 remain under the same directory. The worker exits immediately in any session
 whose user does not match `windowsUser`.
+
+Run `Gnomon.Agent.exe --configure` to open the guided setup window. A bare
+`homeassistant.local` address is normalized to
+`ws://homeassistant.local:8123/api/websocket`.

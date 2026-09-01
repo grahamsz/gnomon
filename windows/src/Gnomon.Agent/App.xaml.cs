@@ -22,6 +22,14 @@ public partial class App : System.Windows.Application
         Program.ConfigureLogging(paths);
 
         var config = await LoadConfigAsync(paths.ConfigFile);
+        if (e.Args.Contains("--configure", StringComparer.OrdinalIgnoreCase))
+        {
+            var setup = new ConfigurationWindow(paths, config);
+            MainWindow = setup;
+            setup.Closed += (_, _) => Shutdown();
+            setup.Show();
+            return;
+        }
         if (!string.Equals(Environment.UserName, config.WindowsUser, StringComparison.OrdinalIgnoreCase))
         {
             Log.Information("Session user {User} does not match configured user {Configured}; exiting", Environment.UserName, config.WindowsUser);
@@ -70,8 +78,16 @@ public partial class App : System.Windows.Application
             Log.Error("Configuration missing at {Path}", path);
             return AgentConfig.Empty;
         }
-        await using var stream = File.OpenRead(path);
-        return await JsonSerializer.DeserializeAsync<AgentConfig>(stream, ProtocolCodec.JsonOptions) ?? AgentConfig.Empty;
+        try
+        {
+            await using var stream = File.OpenRead(path);
+            return await JsonSerializer.DeserializeAsync<AgentConfig>(stream, ProtocolCodec.JsonOptions) ?? AgentConfig.Empty;
+        }
+        catch (JsonException exception)
+        {
+            Log.Error(exception, "Configuration at {Path} is invalid", path);
+            return AgentConfig.Empty;
+        }
     }
 }
 

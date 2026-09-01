@@ -1,4 +1,5 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui"
      xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
   <Package Name="Gnomon Agent" Manufacturer="Gnomon" Version="$(var.Version)"
            UpgradeCode="A10D289A-975E-44F1-B662-DF80D9AFCE54"
@@ -11,6 +12,12 @@
       <Directory Id="INSTALLDIR" Name="Gnomon">
         <Component Id="AgentBinary" Guid="D51CC460-7391-4877-8BA3-694F2CC4B94C" Bitness="always64">
           <File Id="AgentExe" Source="$(var.AgentPublishDir)\Gnomon.Agent.exe" KeyPath="yes" />
+          <File Id="D3DCompiler" Source="$(var.AgentPublishDir)\D3DCompiler_47_cor3.dll" />
+          <File Id="PenImc" Source="$(var.AgentPublishDir)\PenImc_cor3.dll" />
+          <File Id="PresentationNative" Source="$(var.AgentPublishDir)\PresentationNative_cor3.dll" />
+          <File Id="VisualCppRuntime" Source="$(var.AgentPublishDir)\vcruntime140_cor3.dll" />
+          <File Id="WpfGraphics" Source="$(var.AgentPublishDir)\wpfgfx_cor3.dll" />
+          <File Id="LicenseFile" Source="..\..\LICENSE" Name="LICENSE.txt" />
           <ServiceInstall Id="AgentService" Name="GnomonAgent" DisplayName="Gnomon Screen Time Agent"
                           Description="Keeps the visible Gnomon session worker running."
                           Type="ownProcess" Start="auto" ErrorControl="normal" Account="LocalSystem"
@@ -44,6 +51,18 @@
       <ComponentRef Id="AgentBinary"/><ComponentRef Id="RunKey"/>
       <ComponentRef Id="ConfigData"/><ComponentRef Id="LogsDirectory"/>
     </Feature>
+    <ui:WixUI Id="WixUI_Minimal" />
+    <WixVariable Id="WixUILicenseRtf" Value="license.rtf" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALTEXT"
+              Value="Installation is complete. Continue to connect Gnomon to Home Assistant." />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Configure Gnomon now" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
+    <CustomAction Id="LaunchConfiguration" FileRef="AgentExe" ExeCommand="--configure"
+                  Execute="immediate" Return="asyncNoWait" Impersonate="yes" />
+    <UI>
+      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="LaunchConfiguration"
+               Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND NOT Installed" />
+    </UI>
     <CustomAction Id="ConfigureFailureActions" Directory="System64Folder"
                   ExeCommand="sc.exe failure GnomonAgent reset= 86400 actions= restart/5000/restart/5000/restart/30000"
                   Execute="deferred" Impersonate="no" Return="check" />
