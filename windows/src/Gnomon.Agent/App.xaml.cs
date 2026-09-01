@@ -19,23 +19,7 @@ public partial class App : System.Windows.Application
         var paths = AgentPaths.Create();
         Directory.CreateDirectory(paths.DataDirectory);
         Directory.CreateDirectory(paths.LogDirectory);
-        Log.Logger = new LoggerConfiguration()
-            .MinimumLevel.Information()
-            .WriteTo.File(Path.Combine(paths.LogDirectory, "gnomon-.log"), rollingInterval: RollingInterval.Day,
-                retainedFileCountLimit: 14, shared: true)
-            .CreateLogger();
-
-        if (e.Args.Contains("--service", StringComparer.OrdinalIgnoreCase))
-        {
-            _host = Host.CreateDefaultBuilder(e.Args)
-                .UseWindowsService(options => options.ServiceName = "GnomonAgent")
-                .UseSerilog()
-                .ConfigureServices(services => services.AddHostedService<WatchdogService>())
-                .Build();
-            await _host.RunAsync();
-            Shutdown();
-            return;
-        }
+        Program.ConfigureLogging(paths);
 
         var config = await LoadConfigAsync(paths.ConfigFile);
         if (!string.Equals(Environment.UserName, config.WindowsUser, StringComparison.OrdinalIgnoreCase))

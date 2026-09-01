@@ -171,6 +171,24 @@ jobs:
           dotnet publish windows/src/Gnomon.Agent/Gnomon.Agent.csproj -c Release -r win-x64 --self-contained `
             -p:PublishSingleFile=true "-p:Version=$env:BUILD_VERSION" -o $publish
           "WINDOWS_PUBLISH_DIR=$publish" | Out-File $env:GITHUB_ENV -Append
+      - name: Smoke-test Windows service entry point
+        shell: pwsh
+        run: |
+          $executable = Join-Path $env:WINDOWS_PUBLISH_DIR "Gnomon.Agent.exe"
+          $serviceProcess = Start-Process -FilePath $executable -ArgumentList "--service" `
+            -WindowStyle Hidden -PassThru
+          try {
+            Start-Sleep -Seconds 5
+            if ($serviceProcess.HasExited) {
+              throw "The Windows service process exited during startup with code $($serviceProcess.ExitCode)."
+            }
+          }
+          finally {
+            if (-not $serviceProcess.HasExited) {
+              Stop-Process -Id $serviceProcess.Id -Force
+              $serviceProcess.WaitForExit()
+            }
+          }
       - name: Sign Windows executable
         if: steps.windows_signing.outputs.signed == 'true'
         shell: pwsh
