@@ -53,7 +53,8 @@ gh secret set WINDOWS_CERTIFICATE_PASSWORD
 
 After the signing secrets are configured, create and push an annotated semantic
 version tag. The workflow tests everything, publishes the Windows MSI/portable
-ZIP/browser companion, signed Android APK/AAB, and the HACS `gnomon.zip` asset.
+ZIP/browser companion, signed Android APK/AAB, and a manual-install `gnomon.zip`
+Home Assistant package.
 
 ```powershell
 git tag -a v1.0.0 -m "Gnomon 1.0.0"
@@ -66,8 +67,8 @@ third to 65535. The workflow validates this before building.
 ## Add Gnomon to HACS and Home Assistant
 
 The root-level `custom_components/gnomon` layout lets HACS install the default
-branch immediately. Once a production GitHub release exists, HACS also uses the
-versioned `gnomon.zip` asset created by the workflow.
+branch or a tagged release directly from GitHub. The separately attached
+`gnomon.zip` asset is only for manual installation outside HACS.
 
 1. In HACS, open **Integrations**, choose the three-dot menu, then **Custom repositories**.
 2. Enter `https://github.com/grahamsz/gnomon`, select **Integration**, and add it.

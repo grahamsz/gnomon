@@ -1,6 +1,4 @@
 {
   "name": "Gnomon",
-  "filename": "gnomon.zip",
-  "homeassistant": "2025.1.0",
-  "zip_release": true
+  "homeassistant": "2025.1.0"
 }
