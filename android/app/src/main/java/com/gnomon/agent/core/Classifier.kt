@@ -25,12 +25,6 @@ class DeltaQuantizer {
     fun remainderMillis(category: String) = milliseconds[category] ?: 0
 }
 
-class UnknownReportCache {
-    private val sent = mutableSetOf<Triple<String, String, Int>>()
-    fun shouldReport(kind: String, id: String, version: Int) = sent.add(Triple(kind, id, version))
-    fun retainVersion(version: Int) { sent.removeAll { it.third != version } }
-}
-
 object QueueCapPolicy {
     const val MaximumRows = 720
     fun rowsToDrop(currentRows: Int) = maxOf(0, currentRows - (MaximumRows - 1))

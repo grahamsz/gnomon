@@ -5,16 +5,13 @@ from __future__ import annotations
 from typing import Final
 
 DOMAIN: Final = "gnomon"
-PLATFORMS: Final = ("sensor", "number", "binary_sensor", "select")
+PLATFORMS: Final = ("sensor", "number", "binary_sensor")
 STORAGE_KEY: Final = "gnomon.state"
 STORAGE_VERSION: Final = 1
 UNCLASSIFIED: Final = "unclassified"
-ASSIGN_PLACEHOLDER: Final = "— assign —"
 SLUG_PATTERN: Final = r"^[a-z0-9_]+$"
 AGENT_STALE_MINUTES: Final = 15
-UNKNOWN_NOTIFICATION_HOURS: Final = 24
 SIGNAL_STATE_CHANGED: Final = f"{DOMAIN}_state_changed"
-SIGNAL_UNKNOWN_REMOVED: Final = f"{DOMAIN}_unknown_removed"
 
 DEFAULT_CATEGORIES: Final = (
     {"id": "games", "name": "Games", "idle_timeout_min": 3, "media_counts_as_active": False},
@@ -62,3 +59,19 @@ def usage_total_unique_id(kid: str, category: str) -> str:
 
 def limit_unique_id(kid: str, category: str) -> str:
     return f"gnomon_limit_{kid}_{category}"
+
+
+def usage_overall_unique_id(kid: str) -> str:
+    return f"gnomon_used_{kid}_total"
+
+
+def usage_device_total_unique_id(kid: str, device: str) -> str:
+    return f"gnomon_used_{kid}_{device}_total"
+
+
+def limit_overall_unique_id(kid: str) -> str:
+    return f"gnomon_limit_{kid}_total"
+
+
+def limit_device_unique_id(kid: str, device: str) -> str:
+    return f"gnomon_limit_{kid}_{device}_total"

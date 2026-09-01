@@ -23,11 +23,24 @@ async def async_register_services(hass: HomeAssistant, coordinator: GnomonCoordi
     async def get_rules(_call: ServiceCall):
         return coordinator.rules.response()
 
+    async def get_status(call: ServiceCall):
+        kid = call.data["kid"]
+        if kid not in coordinator.kids:
+            raise ServiceValidationError(f"Unknown Gnomon kid: {kid}")
+        return coordinator.status_response(kid, call.data["device"])
+
     async def get_classifications(call: ServiceCall):
         kid = call.data["kid"]
         if kid not in coordinator.kids:
             raise ServiceValidationError(f"Unknown Gnomon kid: {kid}")
-        return coordinator.classification_catalog(kid)
+        return {
+            "version": coordinator.rules.version,
+            "categories": [
+                {"id": value.id, "name": value.name}
+                for value in coordinator.rules.categories.values()
+            ],
+            "items": [],
+        }
 
     async def set_classification(call: ServiceCall):
         kid, category = call.data["kid"], call.data["category"]
@@ -63,6 +76,11 @@ async def async_register_services(hass: HomeAssistant, coordinator: GnomonCoordi
         supports_response=SupportsResponse.ONLY,
     )
     hass.services.async_register(
+        DOMAIN, "get_status", get_status,
+        schema=vol.Schema({vol.Required("kid"): slug, vol.Required("device"): slug}),
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
         DOMAIN, "get_classifications", get_classifications,
         schema=vol.Schema({vol.Required("kid"): slug}),
         supports_response=SupportsResponse.ONLY,
@@ -88,7 +106,7 @@ async def async_register_services(hass: HomeAssistant, coordinator: GnomonCoordi
 
 async def async_unregister_services(hass: HomeAssistant) -> None:
     for service in (
-        "report_usage", "report_unknown", "get_rules", "get_classifications",
+        "report_usage", "report_unknown", "get_rules", "get_status", "get_classifications",
         "set_classification", "heartbeat", "reset",
     ):
         hass.services.async_remove(DOMAIN, service)

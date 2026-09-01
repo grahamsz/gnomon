@@ -28,24 +28,16 @@ public static class ProtocolCodec
     public static string ReportUsage(int id, UsageDelta delta) => CallService(id, "report_usage", new
     {
         kid = delta.Kid, device = delta.Device, category = delta.Category,
-        minutes = delta.Minutes, app_id = delta.AppId,
-        kind = delta.Kind == ClassificationKind.Process ? "process" : "domain",
-        app_label = delta.AppLabel
+        minutes = delta.Minutes
     });
-
-    public static string ReportUnknown(
-        int id, string kid, string device, Classification classification, string hint) =>
-        CallService(id, "report_unknown", new
-        {
-            kid, device,
-            kind = classification.Kind == ClassificationKind.Process ? "process" : "domain",
-            id = classification.AppId, hint
-        });
 
     public static string Heartbeat(int id, string kid, string device, string version) =>
         CallService(id, "heartbeat", new { kid, device, agent_version = version });
 
     public static string GetRules(int id) => CallService(id, "get_rules", new { }, true);
+
+    public static string GetStatus(int id, string kid, string device) =>
+        CallService(id, "get_status", new { kid, device }, true);
 
     public static string GetClassifications(int id, string kid) =>
         CallService(id, "get_classifications", new { kid }, true);
@@ -56,14 +48,17 @@ public static class ProtocolCodec
 
     public static string GetStates(int id) => JsonSerializer.Serialize(new { id, type = "get_states" }, JsonOptions);
 
-    public static string SubscribeStateChanges(int id) => JsonSerializer.Serialize(new
+    public static string SubscribeChanges(int id) => JsonSerializer.Serialize(new
     {
-        id, type = "subscribe_events", event_type = "state_changed"
+        id, type = "subscribe_events", event_type = "gnomon_changed"
     }, JsonOptions);
 
     public static bool IsRulesVersionEvent(JsonNode message)
     {
-        var entityId = message["event"]?["data"]?["entity_id"]?.GetValue<string>();
-        return entityId == "sensor.gnomon_rules_version";
+        return message["event"]?["data"]?["kind"]?.GetValue<string>() == "rules";
     }
+
+    public static bool IsStatusEvent(JsonNode message, string kid) =>
+        message["event"]?["data"]?["kind"]?.GetValue<string>() == "status" &&
+        message["event"]?["data"]?["kid"]?.GetValue<string>() == kid;
 }

@@ -9,18 +9,18 @@ namespace Gnomon.Agent;
 
 internal sealed class HaAdminClient
 {
-    public Task<ClassificationCatalog> GetClassificationsAsync(
+    public Task<RulesMap> GetRulesAsync(
         AgentConfig config, CancellationToken token) =>
-        CallAsync(config, id => ProtocolCodec.GetClassifications(id, config.Kid), token);
+        CallAsync(config, ProtocolCodec.GetRules, token);
 
-    public Task<ClassificationCatalog> SetClassificationAsync(
+    public Task<RulesMap> SetClassificationAsync(
         AgentConfig config, ClassificationItem item, string category, CancellationToken token) =>
         CallAsync(
             config,
             id => ProtocolCodec.SetClassification(id, config.Kid, item.Kind, item.Id, category),
             token);
 
-    private static async Task<ClassificationCatalog> CallAsync(
+    private static async Task<RulesMap> CallAsync(
         AgentConfig config, Func<int, string> request, CancellationToken token)
     {
         using var socket = new ClientWebSocket();
@@ -49,8 +49,8 @@ internal sealed class HaAdminClient
                 throw new InvalidOperationException(error);
             }
             var payload = message["result"]?["response"] ?? message["result"];
-            return payload?.Deserialize<ClassificationCatalog>(ProtocolCodec.JsonOptions)
-                   ?? throw new InvalidDataException("Home Assistant returned an empty classification catalog.");
+            return payload?.Deserialize<RulesMap>(ProtocolCodec.JsonOptions)
+                   ?? throw new InvalidDataException("Home Assistant returned an empty rule document.");
         }
     }
 

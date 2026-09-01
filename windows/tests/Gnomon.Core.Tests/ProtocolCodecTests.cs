@@ -12,13 +12,15 @@ public class ProtocolCodecTests
         Assert.Equal("call_service", json["type"]!.GetValue<string>());
         Assert.Equal("report_usage", json["service"]!.GetValue<string>());
         Assert.Equal(3, json["service_data"]!["minutes"]!.GetValue<int>());
-        Assert.Equal("process", json["service_data"]!["kind"]!.GetValue<string>());
+        Assert.Null(json["service_data"]!["app_id"]);
+        Assert.Null(json["service_data"]!["kind"]);
+        Assert.Equal(4, json["service_data"]!.AsObject().Count);
     }
 
     [Fact]
     public void RulesVersionEventIsFilteredClientSide()
     {
-        var fixture = JsonNode.Parse("""{"event":{"data":{"entity_id":"sensor.gnomon_rules_version"}}}""")!;
+        var fixture = JsonNode.Parse("""{"event":{"data":{"kind":"rules","version":9}}}""")!;
         Assert.True(ProtocolCodec.IsRulesVersionEvent(fixture));
     }
 
@@ -30,5 +32,14 @@ public class ProtocolCodecTests
         Assert.Equal("set_classification", json["service"]!.GetValue<string>());
         Assert.True(json["return_response"]!.GetValue<bool>());
         Assert.Equal("example.com", json["service_data"]!["id"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public void AggregateStatusDoesNotDependOnEntityIds()
+    {
+        var json = JsonNode.Parse(ProtocolCodec.GetStatus(8, "alex", "pc"))!;
+        Assert.Equal("get_status", json["service"]!.GetValue<string>());
+        Assert.True(json["return_response"]!.GetValue<bool>());
+        Assert.Equal("pc", json["service_data"]!["device"]!.GetValue<string>());
     }
 }

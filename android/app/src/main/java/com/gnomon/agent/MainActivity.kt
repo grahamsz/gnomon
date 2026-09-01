@@ -64,20 +64,32 @@ class MainActivity : ComponentActivity() {
         var adminPinConfirmation by rememberSaveable { mutableStateOf("") }
         var classificationQuery by rememberSaveable { mutableStateOf("") }
         var tab by remember { mutableIntStateOf(0) }
-        val tabs = listOf("Today", "Now", "Unclassified", "Admin", "Status")
+        val tabs = listOf("Today", "Now", "Admin", "Status")
         LaunchedEffect(tab, adminUnlocked) {
-            if (tab == 3 && adminUnlocked) viewModel.refreshClassifications()
+            if (tab == 2 && adminUnlocked) viewModel.refreshClassifications()
         }
         Scaffold(topBar = { TopAppBar(title = { Text("Gnomon") }) }) { padding ->
             Column(Modifier.padding(padding).fillMaxSize()) {
                 ScrollableTabRow(tab) { tabs.forEachIndexed { index, title -> Tab(tab == index, { tab = index }, text = { Text(title) }) } }
                 when (tab) {
                     0 -> LazyColumn(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        item { Text("Today's screen time", style = MaterialTheme.typography.headlineSmall) }
+                        val constrained = listOf(status.childOverall, status.deviceOverall)
+                            .filter { it.second > 0 }.map { maxOf(0, it.second - it.first) }
+                        item { Text("Screen time left", style = MaterialTheme.typography.titleMedium) }
+                        item { Text(
+                            if (constrained.isEmpty()) "No overall limit" else "${constrained.min()} minutes",
+                            style = MaterialTheme.typography.displaySmall,
+                            color = if (constrained.minOrNull() == 0) MaterialTheme.colorScheme.error else Color(0xff205037)
+                        ) }
+                        item { Text(
+                            "Child: ${allowanceText(status.childOverall)} · This device: ${allowanceText(status.deviceOverall)}",
+                            color = MaterialTheme.colorScheme.secondary
+                        ) }
+                        item { HorizontalDivider(); Text("Categories", style = MaterialTheme.typography.headlineSmall) }
                         items(status.today.toList()) { (category, values) ->
                             val used = values.first; val limit = values.second
                             Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) {
-                                Text(category, style = MaterialTheme.typography.titleMedium)
+                                Text(status.categoryNames[category] ?: category, style = MaterialTheme.typography.titleMedium)
                                 Text("$used / $limit min · ${if (limit > 0) maxOf(0, limit - used) else "no"} remaining")
                                 if (limit > 0) LinearProgressIndicator(progress = { (used.toFloat() / limit).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
                             } }
@@ -90,12 +102,7 @@ class MainActivity : ComponentActivity() {
                         Text("${status.category} · ${if (status.counting) "counting" else "not counting"}")
                         Text(if (status.screenOn) "Screen on, app foreground" else "Screen off — never counted")
                     }
-                    2 -> LazyColumn(Modifier.padding(16.dp)) {
-                        item { Text("Currently unclassified", style = MaterialTheme.typography.headlineSmall) }
-                        items(status.unknowns.toList()) { Text(it, Modifier.padding(vertical = 8.dp)) }
-                        if (status.unknowns.isEmpty()) item { Text("Nothing waiting for classification.") }
-                    }
-                    3 -> if (!adminUnlocked) LazyColumn(
+                    2 -> if (!adminUnlocked) LazyColumn(
                         Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         item { Text("Parent controls", style = MaterialTheme.typography.headlineSmall) }
@@ -149,7 +156,7 @@ class MainActivity : ComponentActivity() {
                             Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column { Text("Classifications", style = MaterialTheme.typography.titleLarge); Text("${catalog.items.size} apps and websites · rules v${catalog.version}", style = MaterialTheme.typography.bodySmall) }
+                            Column { Text("Classifications", style = MaterialTheme.typography.titleLarge); Text("${catalog.items.size} local apps and websites · rules v${catalog.version}", style = MaterialTheme.typography.bodySmall) }
                             TextButton(onClick = viewModel::refreshClassifications, enabled = !classificationsLoading) { Text(if (classificationsLoading) "Loading…" else "Refresh") }
                         } }
                         item { OutlinedTextField(
@@ -170,9 +177,9 @@ class MainActivity : ComponentActivity() {
                             color = MaterialTheme.colorScheme.secondary
                         ) }
                         if (message.isNotBlank()) item { Text(message) }
-                        item { Text("Bucket changes apply to future minutes and sync through Home Assistant to every Gnomon agent.", color = MaterialTheme.colorScheme.secondary) }
+                        item { Text("This activity list stays on this device. Only the bucket rule syncs through Home Assistant.", color = MaterialTheme.colorScheme.secondary) }
                     }
-                    4 -> LazyColumn(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    3 -> LazyColumn(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         item { Text("Permissions and status", style = MaterialTheme.typography.headlineSmall) }
                         item { PermissionRow("Usage Access", hasUsageAccess(), "Required to identify the foreground app") {
                             startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
@@ -191,6 +198,9 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    private fun allowanceText(value: Pair<Int, Int>) =
+        if (value.second > 0) "${maxOf(0, value.second - value.first)} min left" else "unlimited"
 
     @Composable private fun ClassificationCard(
         item: ClassificationItem,

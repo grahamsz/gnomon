@@ -70,12 +70,6 @@ public sealed class HaWebSocketClient
         }
     }
 
-    public async Task ReportUnknownAsync(Classification item, string hint, CancellationToken token)
-    {
-        if (!Connected) return;
-        await SendAsync(ProtocolCodec.ReportUnknown(NextId(), _config.Kid, _config.Device, item, hint), token);
-    }
-
     private async Task ConnectAndReceiveAsync(CancellationToken token)
     {
         _usageInFlight = null;
@@ -90,8 +84,9 @@ public sealed class HaWebSocketClient
         _status.Update(x => x with { HaConnected = true });
         Log.Information("Connected to Home Assistant for kid {Kid} on device {Device}", _config.Kid, _config.Device);
 
-        await RefreshRulesIfStaleAsync(token);
-        await SendAsync(ProtocolCodec.SubscribeStateChanges(NextId()), token);
+        await RefreshRulesAsync(token);
+        await RefreshAggregateStatusAsync(token);
+        await SendAsync(ProtocolCodec.SubscribeChanges(NextId()), token);
         await SendAsync(ProtocolCodec.Heartbeat(NextId(), _config.Kid, _config.Device, ThisAssembly.Version), token);
         await FlushAsync(token);
         using var heartbeatCancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -110,9 +105,10 @@ public sealed class HaWebSocketClient
             while (_socket.State == WebSocketState.Open && !token.IsCancellationRequested)
             {
                 var message = await ReceiveAsync(token) ?? throw new WebSocketException("Socket closed");
-                HandleUsageResult(message);
-                HandleStateEvent(message);
+                var usageAccepted = HandleUsageResult(message);
+                var statusChanged = ProtocolCodec.IsStatusEvent(message, _config.Kid);
                 if (ProtocolCodec.IsRulesVersionEvent(message)) await RefreshRulesAsync(token);
+                if (usageAccepted || statusChanged) await RefreshAggregateStatusAsync(token);
                 await FlushAsync(token);
             }
         }
@@ -122,21 +118,6 @@ public sealed class HaWebSocketClient
             try { await heartbeatTask; }
             catch (OperationCanceledException) { }
         }
-    }
-
-    private async Task RefreshRulesIfStaleAsync(CancellationToken token)
-    {
-        var commandId = NextId();
-        await SendAsync(ProtocolCodec.GetStates(commandId), token);
-        var message = await AwaitResultAsync(commandId, token);
-        var states = message["result"]?.AsArray();
-        var versionState = states?
-            .FirstOrDefault(x => x?["entity_id"]?.GetValue<string>() == "sensor.gnomon_rules_version");
-        if (states is not null)
-            foreach (var state in states) ApplyCategoryState(state?["entity_id"]?.GetValue<string>(), state?["state"]?.GetValue<string>());
-        var remoteVersion = versionState?["state"]?.GetValue<string>();
-        if (!int.TryParse(remoteVersion, out var version) || version != Rules.Version)
-            await RefreshRulesAsync(token);
     }
 
     private async Task RefreshRulesAsync(CancellationToken token)
@@ -158,30 +139,18 @@ public sealed class HaWebSocketClient
         {
             var message = await ReceiveAsync(token) ?? throw new WebSocketException();
             HandleUsageResult(message);
-            HandleStateEvent(message);
             if (message["id"]?.GetValue<int>() == commandId) return message;
         }
     }
 
-    private void HandleStateEvent(JsonNode message)
+    private async Task RefreshAggregateStatusAsync(CancellationToken token)
     {
-        var data = message["event"]?["data"];
-        ApplyCategoryState(data?["entity_id"]?.GetValue<string>(), data?["new_state"]?["state"]?.GetValue<string>());
-    }
-
-    private void ApplyCategoryState(string? entityId, string? state)
-    {
-        if (!int.TryParse(state, out var value) || entityId is null) return;
-        var usedPrefix = $"sensor.gnomon_used_{_config.Kid}_";
-        var limitPrefix = $"number.gnomon_limit_{_config.Kid}_";
-        if (entityId.StartsWith(usedPrefix, StringComparison.Ordinal))
-        {
-            var category = entityId.Substring(usedPrefix.Length);
-            if (!category.Contains('_') || Rules.Categories.Any(x => x.Id == category))
-                _status.SetCategoryState(category, used: value);
-        }
-        else if (entityId.StartsWith(limitPrefix, StringComparison.Ordinal))
-            _status.SetCategoryState(entityId.Substring(limitPrefix.Length), limit: value);
+        var commandId = NextId();
+        await SendAsync(ProtocolCodec.GetStatus(commandId, _config.Kid, _config.Device), token);
+        var message = await AwaitResultAsync(commandId, token);
+        var response = message["result"]?["response"] ?? message["result"];
+        var status = response?.Deserialize<AggregateStatus>(ProtocolCodec.JsonOptions);
+        if (status is not null) _status.Apply(status);
     }
 
     private async Task FlushAsync(CancellationToken token)
@@ -196,10 +165,11 @@ public sealed class HaWebSocketClient
         catch { _usageInFlight = null; throw; }
     }
 
-    private void HandleUsageResult(JsonNode message)
+    private bool HandleUsageResult(JsonNode message)
     {
-        if (_usageInFlight is not { } pending || message["id"]?.GetValue<int>() != pending.Id) return;
-        if (message["success"]?.GetValue<bool>() == true)
+        if (_usageInFlight is not { } pending || message["id"]?.GetValue<int>() != pending.Id) return false;
+        var accepted = message["success"]?.GetValue<bool>() == true;
+        if (accepted)
         {
             lock (_pending)
             {
@@ -209,6 +179,7 @@ public sealed class HaWebSocketClient
         }
         else Log.Warning("Home Assistant rejected usage delta {Id}; it remains queued", pending.Id);
         _usageInFlight = null;
+        return accepted;
     }
 
     private void LoadCache()

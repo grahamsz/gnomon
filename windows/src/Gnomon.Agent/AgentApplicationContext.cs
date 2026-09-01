@@ -17,9 +17,10 @@ internal sealed class AgentApplicationContext : System.Windows.Forms.Application
         _probes = new ActivityProbes();
         var extension = new ExtensionServer(config, status);
         var homeAssistant = new HaWebSocketClient(config, paths, status);
+        var activity = new LocalActivityStore(paths.ActivityFile);
         var worker = new TrackingWorker(
             config, _foreground, _probes, new Classifier(), new DeltaQuantizer(),
-            new UnknownReportCache(), extension, homeAssistant, status);
+            activity, extension, homeAssistant, status);
         _workerTask = Task.Run(() => worker.RunAsync(_cancellation.Token));
 
         _tray = new TrayController(status);

@@ -19,6 +19,17 @@ class Repository(private val db: GnomonDatabase) {
     suspend fun pending() = dao.pending()
     suspend fun pendingCount() = dao.pendingCount()
     suspend fun deletePending(id: Long) = dao.delete(id)
+    suspend fun activity() = dao.activity()
+
+    suspend fun observeActivity(kind: String, itemId: String, label: String, minutes: Int = 0) {
+        db.withTransaction {
+            val existing = dao.activity(kind, itemId)
+            dao.saveActivity(ActivityItemEntity(
+                kind, itemId, label.ifBlank { itemId },
+                (existing?.minutes ?: 0) + maxOf(0, minutes)
+            ))
+        }
+    }
 
     suspend fun enqueue(
         kid: String, device: String, category: String, minutes: Int, appId: String,

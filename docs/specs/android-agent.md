@@ -53,16 +53,16 @@ Accumulate active seconds against the current category; flush whole minutes via 
 
 ## 5. Classification
 
-1. Package name → rules map lookup. The map's `processes` dict keys map naturally to Android package names (`com.google.android.youtube`, `com.netflix.mediaclient`, …). The HA integration's seed data includes common packages; agents should also handle exact match failures by trying the last two package segments progressively is **not** allowed — exact match only, unknowns go to `unclassified` (keeps the map honest and the triage loop fed).
+1. Package name → rules map lookup. The map's `processes` dict keys map naturally to Android package names (`com.google.android.youtube`, `com.netflix.mediaclient`, …). Exact match only; unknowns go to `unclassified` and the local activity catalog.
 2. `domains` map is unused on Android in 0.1 (no browser extension on Android in 0.1).
-3. Unknown → category `unclassified` + one `report_unknown` per rules-map version, with `hint` = app label from `PackageManager` (e.g. "Brawl Stars"), kind `process`, id = package name.
+3. Package name, app label, local minutes, and last-seen time are stored only in the private Room database and never included in usage reports.
 4. Per-kid `overrides` take precedence over global mappings.
 
 ## 6. Reporting & HA connection
 
 - Persistent WebSocket via OkHttp while screen is on or while a flush is pending; allowed to disconnect during long screen-off periods (battery wins; reconnect on wake and flush).
 - Reconnect with exponential backoff (5 s → 5 min, jittered).
-- On (re)connect: compare cached rules version against `sensor.gnomon_rules_version` (via `get_states`), refetch `gnomon.get_rules` if stale, then `subscribe_events` for its `state_changed`.
+- On (re)connect: fetch `gnomon.get_rules`, then subscribe to `gnomon_changed`. Status refreshes use `gnomon.get_status`, independent of editable HA entity IDs.
 - **Offline queue:** Room table of pending deltas; flush FIFO on reconnect; cap 720 rows (drop oldest with a log + status-screen notice).
 - Heartbeat: `gnomon.heartbeat` on reconnect and every 5 min while connected, with `{kid, device, agent_version}`. Permission-degraded state is conveyed in 0.1 only by the absence of usage deltas plus the local status screen — do not extend the heartbeat schema.
 - WorkManager watchdog: a periodic (15 min, flex) worker that verifies the foreground service is alive and restarts it if killed — the standard OSS pattern for surviving OEM task killers.
@@ -71,11 +71,10 @@ Accumulate active seconds against the current category; flush whole minutes via 
 
 Single-activity Compose app:
 
-- **Today:** per-category progress (used / limit / remaining), matching HA's numbers; pull-to-refresh fetches current totals from HA (`GET /api/states/sensor.gnomon_used_{kid}_{category}` — read-only REST is fine for this)
+- **Today:** prominent overall time left (the tighter of the child-wide and this-device allowances) plus per-category progress; refresh reads only stable aggregate HA states
 - **Now:** current foreground app, its category, whether it's counting, and why ("screen on, foreground")
-- **Unclassified:** the local list of apps currently billing to `unclassified`, with their app labels — the kid can see exactly what's unmapped
 - **Status:** HA connection, permission health, rules version, pending-queue depth
-- **Admin:** parent-PIN-gated connection settings and a usage-ranked classification workbench. The PIN is stored only as a salted PBKDF2 hash in private app storage; leaving the app re-locks the controls.
+- **Admin:** parent-PIN-gated connection settings and a usage-ranked, device-local classification workbench. The PIN is stored only as a salted PBKDF2 hash in private app storage; leaving the app re-locks the controls. Only an explicitly selected rule is sent to HA.
 - Persistent notification: compact per-category summary (`Games 47/90 · Video 12/30`)
 - No stealth mode, no disguised icon, no hidden reporting. Do not add any.
 
@@ -85,12 +84,7 @@ Single-activity Compose app:
 - **Report usage:**
 ```json
 {"id":1,"type":"call_service","domain":"gnomon","service":"report_usage",
- "service_data":{"kid":"alex","device":"phone","category":"games","minutes":2,"app_id":"com.supercell.brawlstars","kind":"process","app_label":"Brawl Stars"}}
-```
-- **Report unknown:**
-```json
-{"id":2,"type":"call_service","domain":"gnomon","service":"report_unknown",
- "service_data":{"kid":"alex","device":"phone","kind":"process","id":"com.supercell.brawlstars","hint":"Brawl Stars"}}
+ "service_data":{"kid":"alex","device":"phone","category":"games","minutes":2}}
 ```
 - **Get rules (needs response):**
 ```json
@@ -105,8 +99,8 @@ Response schema:
  "overrides":{"alex":{"processes":{},"domains":{}}}}
 ```
 - **Heartbeat:** `gnomon.heartbeat` with `{kid, device, agent_version}`.
-- **Admin classifications:** response-bearing REST calls to `gnomon.get_classifications` and `gnomon.set_classification`; HA persists assignments and rules-version invalidation synchronizes them to all agents.
-- **Invalidate:** `subscribe_events` on `state_changed`; client-filter `entity_id == "sensor.gnomon_rules_version"`; on change → refetch rules.
+- **Admin classifications:** the list is built from local Room data; a response-bearing REST call to `gnomon.set_classification` persists the selected rule and returns the refreshed rules document.
+- **Invalidate:** subscribe to `gnomon_changed`; `kind=rules` refetches rules and `kind=status` refreshes aggregate allowances.
 - Deltas are integer minutes; the integration owns all accumulation. Never send cumulative totals. All timestamps UTC; no local midnight logic — reset is HA's job.
 
 ## 9. Error handling & edge cases
@@ -123,7 +117,7 @@ Response schema:
 
 1. Foreground app attribution matches manual observation across 20 app switches including rapid switching
 2. Screen off stops counting within one poll interval; wake replays the gap correctly
-3. Unknown app appears once in HA triage with its human-readable label
+3. Unknown app appears only in the local admin workbench with its human-readable label
 4. Airplane mode 30 min with active usage → zero lost minutes after reconnect; totals in HA match on-device totals
 5. Rules edited in HA → app applies new map within seconds while connected
 6. Force-stop the app → WorkManager restarts tracking within one periodic window; restart is visible on status screen

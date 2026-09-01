@@ -152,7 +152,7 @@ public sealed class ConfigurationWindow : System.Windows.Forms.Form
         var config = new AgentConfig(
             haUrl, _token.Text.Trim(), _kid.Text.Trim(), _device.Text.Trim(),
             _windowsUser.Text.Trim(), 45981);
-        new ClassificationWindow(config).ShowDialog(this);
+        new ClassificationWindow(config, new LocalActivityStore(_paths.ActivityFile)).ShowDialog(this);
     }
 
     private static System.Windows.Forms.Control Field(

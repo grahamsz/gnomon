@@ -18,7 +18,7 @@ class TrackingService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private lateinit var app: GnomonApplication
     private lateinit var client: HaClient
-    private val classifier = Classifier(); private val quantizer = DeltaQuantizer(); private val unknowns = UnknownReportCache()
+    private val classifier = Classifier(); private val quantizer = DeltaQuantizer()
     private var config = AgentConfig(); private var currentPackage: String? = null; private var currentCategory = "unclassified"
     private var currentLabel = ""
     private var lastQuery = System.currentTimeMillis(); private var lastTick = lastQuery; private var screenOn = true
@@ -53,7 +53,10 @@ class TrackingService : Service() {
             if (access && screenOn) {
                 val observed = queryEvents(lastQuery, now)
                 val next = UsageEventReducer.currentPackage(observed, currentPackage)
-                if (next != currentPackage) { flush(); currentPackage = next }
+                if (next != currentPackage) {
+                    flush(); currentPackage = next
+                    next?.let { app.repository.observeActivity("process", it, appLabel(it)) }
+                }
                 next?.let { packageName ->
                     val classification = classifier.classify(packageName, config.kid, client.rules.value)
                     currentCategory = classification.category
@@ -62,24 +65,23 @@ class TrackingService : Service() {
                     if (quantizer.remainderMillis(usageKey) >= 60_000L) flush()
                     val label = appLabel(packageName)
                     currentLabel = label
-                    if (classification.unknown && unknowns.shouldReport("process", packageName, classification.rulesVersion)) {
-                        if (!client.reportUnknown(packageName, label)) unknowns.retainVersion(-1)
-                    }
-                    val local = app.status.value.unknowns.toMutableSet().apply { if (classification.unknown) add("$label ($packageName)") }
                     app.status.value = app.status.value.copy(currentPackage = packageName, currentLabel = label,
                         category = classification.category, counting = true, screenOn = true, usageAccess = access,
-                        connected = client.connected.value, rulesVersion = client.rules.value.version, unknowns = local)
+                        connected = client.connected.value, rulesVersion = client.rules.value.version)
                 }
             } else {
                 app.status.value = app.status.value.copy(counting = false, screenOn = screenOn, usageAccess = access)
                 if (!screenOn && app.repository.pendingCount() == 0) client.close()
             }
             if (client.connected.value && now - lastTotalsRefresh >= 5 * 60_000L) {
-                runCatching { HaRestClient().today(config, client.rules.value) }
-                    .onSuccess { app.status.value = app.status.value.copy(today = it) }
+                runCatching { HaRestClient().today(config) }
+                    .onSuccess { app.status.value = app.status.value.copy(
+                        today = it.categories, categoryNames = it.categoryNames,
+                        childOverall = it.child, deviceOverall = it.device
+                    ) }
                 lastTotalsRefresh = now
             }
-            unknowns.retainVersion(client.rules.value.version); lastTick = now; lastQuery = now
+            lastTick = now; lastQuery = now
             updateNotification(); delay(15_000L)
         }
     }
@@ -99,6 +101,16 @@ class TrackingService : Service() {
     private suspend fun flush() {
         val packageName = currentPackage ?: return
         val minutes = quantizer.flush("process:$packageName")
+        if (minutes > 0) {
+            app.repository.observeActivity("process", packageName, currentLabel, minutes)
+            val snapshot = app.status.value
+            val category = snapshot.today[currentCategory] ?: (0 to 0)
+            app.status.value = snapshot.copy(
+                today = snapshot.today + (currentCategory to (category.first + minutes to category.second)),
+                childOverall = snapshot.childOverall.first + minutes to snapshot.childOverall.second,
+                deviceOverall = snapshot.deviceOverall.first + minutes to snapshot.deviceOverall.second
+            )
+        }
         var remaining = minutes
         while (remaining > 0) {
             val chunk = minOf(30, remaining)

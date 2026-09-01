@@ -26,10 +26,16 @@ async def async_setup_entry(
                 item = GnomonExhaustedSensor(coordinator, entry, kid, category)
                 if item.unique_id not in known:
                     known.add(item.unique_id); entities.append(item)
+            item = GnomonOverallExhaustedSensor(coordinator, entry, kid)
+            if item.unique_id not in known:
+                known.add(item.unique_id); entities.append(item)
             for device in coordinator.devices.get(kid, set()):
-                item = GnomonAgentSensor(coordinator, entry, kid, device)
-                if item.unique_id not in known:
-                    known.add(item.unique_id); entities.append(item)
+                for item in (
+                    GnomonDeviceExhaustedSensor(coordinator, entry, kid, device),
+                    GnomonAgentSensor(coordinator, entry, kid, device),
+                ):
+                    if item.unique_id not in known:
+                        known.add(item.unique_id); entities.append(item)
         if entities:
             async_add_entities(entities)
 
@@ -54,6 +60,44 @@ class GnomonExhaustedSensor(GnomonEntity, BinarySensorEntity):
     @property
     def device_info(self):
         return self.kid_device_info(self.kid)
+
+
+class GnomonOverallExhaustedSensor(GnomonEntity, BinarySensorEntity):
+    _attr_icon = "mdi:timer-alert-outline"
+
+    def __init__(self, coordinator, entry, kid: str) -> None:
+        super().__init__(coordinator, entry)
+        self.kid = kid
+        self._attr_unique_id = f"gnomon_exhausted_{kid}_total"
+        self._attr_suggested_object_id = self._attr_unique_id
+        self._attr_name = f"Exhausted {kid} total"
+
+    @property
+    def is_on(self) -> bool:
+        return self.coordinator.overall_exhausted(self.kid)
+
+    @property
+    def device_info(self):
+        return self.kid_device_info(self.kid)
+
+
+class GnomonDeviceExhaustedSensor(GnomonEntity, BinarySensorEntity):
+    _attr_icon = "mdi:timer-alert-outline"
+
+    def __init__(self, coordinator, entry, kid: str, device: str) -> None:
+        super().__init__(coordinator, entry)
+        self.kid, self.device = kid, device
+        self._attr_unique_id = f"gnomon_exhausted_{kid}_{device}_total"
+        self._attr_suggested_object_id = self._attr_unique_id
+        self._attr_name = f"Exhausted {kid} {device} total"
+
+    @property
+    def is_on(self) -> bool:
+        return self.coordinator.device_exhausted(self.kid, self.device)
+
+    @property
+    def device_info(self):
+        return self.agent_device_info(self.kid, self.device)
 
 
 class GnomonAgentSensor(GnomonEntity, BinarySensorEntity):

@@ -11,8 +11,9 @@ deltas need transactional FIFO deletion and a strict 720-row cap.
 
 Connection settings and the classification workbench live under **Admin**. The
 parent creates a 4–8 digit PIN on first use; only a salted PBKDF2 hash is stored,
-and the app locks the admin surface whenever it leaves the foreground. Bucket
-changes are saved in Home Assistant and synchronize to all Gnomon agents.
+and the app locks the admin surface whenever it leaves the foreground. The activity
+list remains in the private Room database; only selected bucket rules are saved in
+Home Assistant and synchronized to other Gnomon agents.
 
 Run unit tests with `./gradlew test` and the usage-event reducer instrumentation
 test with `./gradlew connectedAndroidTest`.

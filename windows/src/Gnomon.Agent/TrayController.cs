@@ -65,10 +65,15 @@ public sealed class TrayController : IDisposable
     private void Changed(object? sender, EventArgs e)
     {
         var status = _status.Snapshot;
-        var summary = string.Join(" · ", _status.CategoryTotals.Take(3).Select(x => $"{x.Key} {x.Value.Used}/{x.Value.Limit} min"));
+        var constrained = new[] { _status.ChildOverall, _status.DeviceOverall }
+            .Where(value => value.Limit > 0)
+            .Select(value => Math.Max(0, value.Limit - value.Used)).ToList();
+        var summary = constrained.Count > 0
+            ? $"Gnomon · {constrained.Min()} min left"
+            : "Gnomon · no overall limit";
         var tooltip = !status.HaConnected
             ? "Gnomon · Home Assistant offline"
-            : string.IsNullOrEmpty(summary) ? "Gnomon · connected · no usage yet" : summary;
+            : summary;
         _icon.Text = tooltip.Substring(0, Math.Min(63, tooltip.Length));
     }
 

@@ -18,7 +18,7 @@ automation:
 ```
 
 Create a long-lived access token for each agent. The integration persists the
-ledger, limits, rules, registered devices, and unknown inbox through HA's storage
+aggregate ledger, limits, shared rules, and registered devices through HA's storage
 helper. Agent connectivity deliberately starts off after an HA restart.
 
 ## Test

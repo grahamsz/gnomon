@@ -46,6 +46,17 @@ import kotlinx.serialization.Serializable
     val items: List<ClassificationItem> = emptyList()
 )
 
+@Serializable data class AggregateAllowance(val used: Int = 0, val limit: Int = 0)
+@Serializable data class DeviceAllowance(val id: String = "", val used: Int = 0, val limit: Int = 0)
+@Serializable data class CategoryAllowance(
+    val id: String, val name: String, val used: Int = 0, val limit: Int = 0
+)
+@Serializable data class AggregateStatus(
+    val categories: List<CategoryAllowance> = emptyList(),
+    val child: AggregateAllowance = AggregateAllowance(),
+    val device: DeviceAllowance = DeviceAllowance()
+)
+
 data class Classification(val category: String, val packageName: String, val unknown: Boolean, val rulesVersion: Int)
 
 data class TrackerStatus(
@@ -54,6 +65,9 @@ data class TrackerStatus(
     val screenOn: Boolean = true, val connected: Boolean = false,
     val rulesVersion: Int = 0, val pendingCount: Int = 0,
     val usageAccess: Boolean = false, val restartCount: Int = 0,
-    val queueOverflowed: Boolean = false, val unknowns: Set<String> = emptySet(),
-    val today: Map<String, Pair<Int, Int>> = emptyMap()
+    val queueOverflowed: Boolean = false,
+    val today: Map<String, Pair<Int, Int>> = emptyMap(),
+    val categoryNames: Map<String, String> = emptyMap(),
+    val childOverall: Pair<Int, Int> = 0 to 0,
+    val deviceOverall: Pair<Int, Int> = 0 to 0
 )

@@ -7,8 +7,13 @@ locking, overlays, stealth mode, or process control.
 
 Parents can classify usage from either agent: Windows exposes an elevated
 classification workbench in **Configure**, while Android keeps connection and
-classification controls behind a local parent PIN. Both write kid-specific rules
-to Home Assistant, which synchronizes them to every connected agent.
+classification controls behind a local parent PIN. Each workbench lists only
+activity observed locally. Home Assistant receives and distributes the selected
+kid-specific rules, never the device's app or browsing catalog.
+
+Daily category budgets are independent from two overall allowances: one across
+all of a child's devices and one for each device. The visible agent view leads
+with the tighter remaining overall allowance, then shows every category's time left.
 
 ## Repository layout
 
@@ -64,7 +69,7 @@ session before using the commands in the component READMEs:
 
 ## Privacy and safety contract
 
-Agents send only the configured kid/device identifiers, category, integer minute
-deltas, process/package identifiers, browser hostnames, and optional app labels.
-The browser extension never sends URLs, paths, page titles, or history. Gnomon 0.1
-only measures and displays activity.
+Agents send only the configured kid/device identifiers, category, integer-minute
+deltas, heartbeats, and parent-selected classification rules. Process/package
+identifiers, browser hostnames, app labels, URLs, paths, titles, and history remain
+local to the device. Gnomon 0.1 only measures and displays activity.

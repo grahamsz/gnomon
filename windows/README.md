@@ -33,9 +33,8 @@ Run `Gnomon.Agent.exe --configure` to open the guided setup window. A bare
 `ws://homeassistant.local:8123/api/websocket`.
 
 Because configuration is elevated, its **Classifications** button is the Windows
-admin boundary. The workbench shows usage-ranked apps and websites with their
-minutes and lets the parent change a bucket; Home Assistant persists and syncs
-the resulting kid-specific rule.
+admin boundary. The workbench shows only this PC's usage-ranked apps and websites.
+Home Assistant persists and syncs the selected rule, not the local activity list.
 
 The MSI also installs the Chrome companion files under `Browser Companion`.
 Choose **Set up Chrome companion** from the Gnomon tray menu to open Chrome's

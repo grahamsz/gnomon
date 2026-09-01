@@ -7,7 +7,9 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gnomon.agent.model.AgentConfig
 import com.gnomon.agent.model.ClassificationCatalog
+import com.gnomon.agent.model.ClassificationCategory
 import com.gnomon.agent.model.ClassificationItem
+import com.gnomon.agent.model.RulesMap
 import com.gnomon.agent.network.HaClient
 import com.gnomon.agent.network.HaRestClient
 import com.gnomon.agent.tracking.TrackingService
@@ -37,9 +39,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         message.value = result.fold({ "Connection and get_rules succeeded." }, { "Connection failed: ${it.message}" })
     }
     fun refreshToday() = viewModelScope.launch {
-        val rules = app.repository.rules(); val value = config.value
-        runCatching { HaRestClient().today(value, rules) }
-            .onSuccess { status.value = status.value.copy(today = it); message.value = "Today refreshed." }
+        val value = config.value
+        runCatching { HaRestClient().today(value) }
+            .onSuccess { status.value = status.value.copy(
+                today = it.categories, categoryNames = it.categoryNames,
+                childOverall = it.child, deviceOverall = it.device
+            ); message.value = "Today refreshed." }
             .onFailure { message.value = "Refresh failed: ${it.message}" }
     }
     fun createAdminPin(pin: String, confirmation: String) {
@@ -61,14 +66,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun lockAdmin() { adminUnlocked.value = false }
     fun refreshClassifications() = viewModelScope.launch {
         if (!adminUnlocked.value) return@launch
-        val value = config.value
-        if (value.haUrl.isBlank() || value.token.isBlank() || value.kid.isBlank()) {
-            message.value = "Save the Home Assistant connection before loading classifications."
-            return@launch
-        }
         classificationsLoading.value = true
-        runCatching { HaRestClient().classifications(value) }
-            .onSuccess { classifications.value = it; message.value = "Classifications refreshed." }
+        runCatching { buildLocalCatalog(app.repository.rules()) }
+            .onSuccess { classifications.value = it; message.value = "Local activity refreshed." }
             .onFailure { message.value = "Classification refresh failed: ${it.message}" }
         classificationsLoading.value = false
     }
@@ -76,11 +76,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (!adminUnlocked.value || category == item.category) return@launch
         classificationsLoading.value = true
         runCatching { HaRestClient().setClassification(config.value, item, category) }
-            .onSuccess {
-                classifications.value = it
+            .onSuccess { rules ->
+                app.repository.saveRules(rules)
+                classifications.value = buildLocalCatalog(rules)
                 message.value = "${item.label} now uses $category. Syncing to agents."
             }
             .onFailure { message.value = "Could not change bucket: ${it.message}" }
         classificationsLoading.value = false
+    }
+
+    private suspend fun buildLocalCatalog(rules: RulesMap): ClassificationCatalog {
+        val kid = config.value.kid
+        val override = rules.overrides[kid]
+        val items = app.repository.activity().map { value ->
+            val category = if (value.kind == "domain") {
+                val candidates = rules.domains + (override?.domains ?: emptyMap())
+                candidates.filterKeys { value.itemId == it || value.itemId.endsWith(".$it") }
+                    .maxByOrNull { it.key.length }?.value ?: "unclassified"
+            } else override?.processes?.get(value.itemId) ?: rules.processes[value.itemId] ?: "unclassified"
+            ClassificationItem(
+                value.kind, value.itemId, value.label, category, value.minutes,
+                listOf(config.value.device), value.lastSeen.toString(), category == "unclassified"
+            )
+        }
+        return ClassificationCatalog(
+            rules.version, rules.categories.map { ClassificationCategory(it.id, it.name) }, items
+        )
     }
 }

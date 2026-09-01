@@ -73,6 +73,14 @@ public sealed record ClassificationCatalog(
     IReadOnlyList<ClassificationCategory> Categories,
     IReadOnlyList<ClassificationItem> Items);
 
+public sealed record AggregateAllowance(int Used, int Limit);
+public sealed record DeviceAllowance(string Id, int Used, int Limit);
+public sealed record CategoryAllowance(string Id, string Name, int Used, int Limit);
+public sealed record AggregateStatus(
+    IReadOnlyList<CategoryAllowance> Categories,
+    AggregateAllowance Child,
+    DeviceAllowance Device);
+
 public sealed record ActivitySnapshot(
     bool ForegroundMapped,
     bool SessionActive,
@@ -86,5 +94,4 @@ public sealed record StatusSnapshot(
     bool Counting,
     bool ExtensionReachable,
     bool HaConnected,
-    int RulesVersion,
-    IReadOnlyCollection<string> UnknownItems);
+    int RulesVersion);

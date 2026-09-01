@@ -16,6 +16,10 @@ import kotlinx.coroutines.flow.Flow
     val kind: String = "process", val appLabel: String = "",
     val createdAt: Long = System.currentTimeMillis()
 )
+@Entity(tableName = "activity_item", primaryKeys = ["kind", "itemId"]) data class ActivityItemEntity(
+    val kind: String, val itemId: String, val label: String,
+    val minutes: Int = 0, val lastSeen: Long = System.currentTimeMillis()
+)
 
 @Dao interface GnomonDao {
     @Query("SELECT * FROM config WHERE id = 1") suspend fun config(): ConfigEntity?
@@ -29,9 +33,12 @@ import kotlinx.coroutines.flow.Flow
     @Query("DELETE FROM pending_delta WHERE id IN (SELECT id FROM pending_delta ORDER BY id LIMIT :count)")
     suspend fun deleteOldest(count: Int)
     @Query("SELECT * FROM pending_delta ORDER BY id") fun observePending(): Flow<List<PendingDeltaEntity>>
+    @Query("SELECT * FROM activity_item ORDER BY minutes DESC, label") suspend fun activity(): List<ActivityItemEntity>
+    @Query("SELECT * FROM activity_item WHERE kind = :kind AND itemId = :itemId") suspend fun activity(kind: String, itemId: String): ActivityItemEntity?
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun saveActivity(value: ActivityItemEntity)
 }
 
-@Database(entities = [ConfigEntity::class, RulesEntity::class, PendingDeltaEntity::class], version = 2, exportSchema = false)
+@Database(entities = [ConfigEntity::class, RulesEntity::class, PendingDeltaEntity::class, ActivityItemEntity::class], version = 3, exportSchema = false)
 abstract class GnomonDatabase : RoomDatabase() {
     abstract fun dao(): GnomonDao
     companion object {
@@ -42,9 +49,14 @@ abstract class GnomonDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE pending_delta ADD COLUMN appLabel TEXT NOT NULL DEFAULT ''")
             }
         }
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS activity_item (kind TEXT NOT NULL, itemId TEXT NOT NULL, label TEXT NOT NULL, minutes INTEGER NOT NULL, lastSeen INTEGER NOT NULL, PRIMARY KEY(kind, itemId))")
+            }
+        }
         fun get(context: Context) = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context, GnomonDatabase::class.java, "gnomon.db")
-                .addMigrations(MIGRATION_1_2).build().also { instance = it }
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3).build().also { instance = it }
         }
     }
 }

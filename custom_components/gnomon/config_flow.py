@@ -90,7 +90,7 @@ class GnomonOptionsFlow(config_entries.OptionsFlow):
         errors = {}
         if user_input:
             category_id = slugify(user_input["id"])
-            if not category_id or category_id in self.coordinator.rules.categories:
+            if not category_id or category_id == "total" or category_id in self.coordinator.rules.categories:
                 errors["base"] = "duplicate_or_invalid"
             else:
                 from .models import Category

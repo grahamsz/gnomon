@@ -3,9 +3,10 @@ using Gnomon.Core;
 
 namespace Gnomon.Agent;
 
-public sealed class ClassificationWindow : System.Windows.Forms.Form
+internal sealed class ClassificationWindow : System.Windows.Forms.Form
 {
     private readonly AgentConfig _config;
+    private readonly LocalActivityStore _activity;
     private readonly HaAdminClient _client = new();
     private readonly System.Windows.Forms.TextBox _search = new();
     private readonly System.Windows.Forms.ComboBox _kind = new();
@@ -14,11 +15,13 @@ public sealed class ClassificationWindow : System.Windows.Forms.Form
     private readonly System.Windows.Forms.Label _status = new();
     private readonly System.Windows.Forms.Button _refresh = new();
     private ClassificationCatalog _catalog = new(0, [], []);
+    private RulesMap _rules = RulesMap.Empty;
     private bool _loading;
 
-    public ClassificationWindow(AgentConfig config)
+    public ClassificationWindow(AgentConfig config, LocalActivityStore activity)
     {
         _config = config;
+        _activity = activity;
         Text = "Gnomon classifications";
         ClientSize = new Size(860, 590);
         MinimumSize = SizeFromClientSize(new Size(720, 500));
@@ -49,7 +52,7 @@ public sealed class ClassificationWindow : System.Windows.Forms.Form
         root.Controls.Add(new System.Windows.Forms.Label
         {
             AutoSize = true,
-            Text = "See where time went, then change a bucket. Changes sync through Home Assistant to every Gnomon agent.",
+            Text = "Classify only activity seen on this PC. Home Assistant syncs the resulting rules—not your browsing list.",
             ForeColor = Color.DimGray,
             Margin = new System.Windows.Forms.Padding(0, 2, 0, 14),
         });
@@ -147,7 +150,8 @@ public sealed class ClassificationWindow : System.Windows.Forms.Form
         try
         {
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
-            _catalog = await _client.GetClassificationsAsync(_config, timeout.Token);
+            _rules = await _client.GetRulesAsync(_config, timeout.Token);
+            _catalog = BuildLocalCatalog();
             ConfigureCategories();
             RebuildRows();
             _status.ForeColor = Color.DimGray;
@@ -205,7 +209,8 @@ public sealed class ClassificationWindow : System.Windows.Forms.Form
         try
         {
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
-            _catalog = await _client.SetClassificationAsync(_config, item, category, timeout.Token);
+            _rules = await _client.SetClassificationAsync(_config, item, category, timeout.Token);
+            _catalog = BuildLocalCatalog();
             ConfigureCategories();
             RebuildRows();
             _status.ForeColor = Color.FromArgb(25, 112, 59);
@@ -229,5 +234,24 @@ public sealed class ClassificationWindow : System.Windows.Forms.Form
             _status.ForeColor = Color.FromArgb(33, 74, 117);
             _status.Text = message;
         }
+    }
+
+    private ClassificationCatalog BuildLocalCatalog()
+    {
+        var classifier = new Classifier();
+        var now = DateTimeOffset.UtcNow;
+        var items = _activity.Read().Select(value =>
+        {
+            var classification = value.Kind == "domain"
+                ? classifier.Classify("chrome.exe", _config.Kid, value.Id, now, now, _rules)
+                : classifier.Classify(value.Id, _config.Kid, null, null, now, _rules);
+            return new ClassificationItem(
+                value.Kind, value.Id, value.Label, classification.Category, value.Minutes,
+                [_config.Device], value.LastSeen.ToString("O"), classification.IsUnknown);
+        }).OrderByDescending(value => value.Minutes).ThenBy(value => value.Label).ToList();
+        return new ClassificationCatalog(
+            _rules.Version,
+            _rules.Categories.Select(value => new ClassificationCategory(value.Id, value.Name)).ToList(),
+            items);
     }
 }

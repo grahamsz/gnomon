@@ -23,13 +23,10 @@ class HaClient(
     private val ids = AtomicInteger()
     private var socket: WebSocket? = null
     private var config: AgentConfig? = null
-    private var expectedStatesId = 0
     private var expectedRulesId = 0
-    private var cachedRulesVersion = 0
     private val usageInFlight = mutableMapOf<Int, Long>()
     private var heartbeatJob: Job? = null
     private var retryJob: Job? = null
-    private var forceRulesRoundTrip = false
     private var intentionalClose = false
     val rules = MutableStateFlow(RulesMap())
     val connected = MutableStateFlow(false)
@@ -37,7 +34,7 @@ class HaClient(
 
     suspend fun start(value: AgentConfig) {
         intentionalClose = false
-        config = value; rules.value = repository.rules(); cachedRulesVersion = rules.value.version
+        config = value; rules.value = repository.rules()
         open()
     }
 
@@ -58,8 +55,11 @@ class HaClient(
                     retry(hours = 1)
                 }
                 "event" -> {
-                    val entity = message["event"]?.jsonObject?.get("data")?.jsonObject?.get("entity_id")?.jsonPrimitive?.contentOrNull
-                    if (entity == "sensor.gnomon_rules_version") requestRules()
+                    val data = message["event"]?.jsonObject?.get("data")?.jsonObject
+                    when (data?.get("kind")?.jsonPrimitive?.contentOrNull) {
+                        "rules" -> requestRules()
+                        "status" -> if (data["kid"]?.jsonPrimitive?.contentOrNull == config?.kid) refreshStatus()
+                    }
                 }
                 "result" -> handleResult(message)
             }
@@ -69,7 +69,7 @@ class HaClient(
     private suspend fun authenticated() {
         connected.value = true
         app.status.value = app.status.value.copy(connected = true)
-        expectedStatesId = nextId(); socket?.send(Protocol.getStates(expectedStatesId))
+        requestRules()
         socket?.send(Protocol.subscribe(nextId()))
         socket?.send(Protocol.heartbeat(nextId(), config!!))
         heartbeatJob?.cancel(); heartbeatJob = scope.launch {
@@ -80,18 +80,11 @@ class HaClient(
 
     private suspend fun handleResult(message: JsonObject) {
         val id = message["id"]?.jsonPrimitive?.intOrNull ?: return
-        if (id == expectedStatesId) {
-            val states = message["result"]?.jsonArray
-            val remote = states?.firstOrNull {
-                it.jsonObject["entity_id"]?.jsonPrimitive?.content == "sensor.gnomon_rules_version"
-            }?.jsonObject?.get("state")?.jsonPrimitive?.content?.toIntOrNull()
-            if (forceRulesRoundTrip || remote == null || remote != cachedRulesVersion) requestRules()
-            else testResult?.complete(Result.success(Unit))
-        } else if (id == expectedRulesId) {
+        if (id == expectedRulesId) {
             val result = message["result"]?.jsonObject
             val payload = result?.get("response") ?: result
             runCatching { json.decodeFromJsonElement<RulesMap>(payload!!) }.onSuccess {
-                rules.value = it; cachedRulesVersion = it.version; repository.saveRules(it)
+                rules.value = it; repository.saveRules(it)
                 app.status.value = app.status.value.copy(rulesVersion = it.version)
                 testResult?.complete(Result.success(Unit))
             }.onFailure { testResult?.complete(Result.failure(it)) }
@@ -104,6 +97,16 @@ class HaClient(
 
     private fun requestRules() { expectedRulesId = nextId(); socket?.send(Protocol.rules(expectedRulesId)) }
 
+    private suspend fun refreshStatus() {
+        val value = config ?: return
+        runCatching { HaRestClient().today(value) }.onSuccess {
+            app.status.value = app.status.value.copy(
+                today = it.categories, categoryNames = it.categoryNames,
+                childOverall = it.child, deviceOverall = it.device
+            )
+        }
+    }
+
     suspend fun notifyQueueChanged() { if (connected.value) flushNext() }
 
     private suspend fun flushNext() {
@@ -114,13 +117,8 @@ class HaClient(
         app.status.value = app.status.value.copy(pendingCount = repository.pendingCount(), queueOverflowed = repository.queueOverflowed)
     }
 
-    fun reportUnknown(packageName: String, label: String): Boolean {
-        if (!connected.value) return false
-        return socket?.send(Protocol.unknown(nextId(), config!!, packageName, label)) == true
-    }
-
     suspend fun test(value: AgentConfig): Result<Unit> {
-        forceRulesRoundTrip = true; testResult = CompletableDeferred(); start(value)
+        testResult = CompletableDeferred(); start(value)
         return withTimeoutOrNull(15_000) { testResult!!.await() } ?: Result.failure(Exception("Connection timed out"))
     }
 

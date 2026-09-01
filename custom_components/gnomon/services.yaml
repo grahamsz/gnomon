@@ -6,12 +6,9 @@ report_usage:
     device: {required: true, selector: {text: {}}}
     category: {required: true, selector: {text: {}}}
     minutes: {required: true, selector: {number: {min: 1, max: 30, mode: box}}}
-    app_id: {required: false, selector: {text: {}}}
-    kind: {required: false, selector: {select: {options: [process, domain]}}}
-    app_label: {required: false, selector: {text: {}}}
 report_unknown:
-  name: Report unknown
-  description: Add or refresh an item in the classification inbox.
+  name: Report unknown (legacy)
+  description: Compatibility no-op for older agents; raw activity stays on the device.
   fields:
     kid: {required: true, selector: {text: {}}}
     device: {required: true, selector: {text: {}}}
@@ -21,9 +18,15 @@ report_unknown:
 get_rules:
   name: Get rules
   description: Return the versioned classification map to an agent.
+get_status:
+  name: Get status
+  description: Return category, child-wide, and device-wide aggregate usage and limits.
+  fields:
+    kid: {required: true, selector: {text: {}}}
+    device: {required: true, selector: {text: {}}}
 get_classifications:
-  name: Get classifications
-  description: Return the usage-ranked app and website classification catalog for a kid.
+  name: Get classifications (legacy)
+  description: Compatibility response for older agents. Activity catalogs are device-local.
   fields:
     kid: {required: true, selector: {text: {}}}
 set_classification:

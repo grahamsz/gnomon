@@ -73,10 +73,10 @@ Run a 1 s dispatcher timer that evaluates this and accumulates active seconds ag
 
 1. Resolve foreground process name against the rules map `processes` dict (exact, case-insensitive).
 2. **Browser exception:** if the process is a known browser (`msedge.exe`, `chrome.exe`, `firefox.exe`, `brave.exe`, `vivaldi.exe`), defer to the domain reported by the browser extension (§5). Resolve hostname against `domains` by suffix match (map stores base domains; `www.youtube.com` matches `youtube.com`).
-3. If no mapping (or browser with no extension heartbeat in the last 60 s): category = `unclassified`, and report the item once per rules-map version via `gnomon.report_unknown` (see §8) with a `hint` from the exe's `FileDescription`/`CompanyName` metadata.
+3. If no mapping (or browser with no extension heartbeat in the last 60 s): category = `unclassified`. Record the identifier and display label only in the local activity catalog.
 4. Per-kid `overrides` in the rules map take precedence over global mappings.
 
-Unknowns already reported are cached in a local set keyed `(kind, id, rulesVersion)`; a rules version bump clears the set so newly-classified items that re-appear unknown (e.g. map rollback) are re-reported.
+The local catalog is usage-ranked and persisted under the tracked Windows user's local application data. Raw catalog contents are never reported to HA.
 
 ## 5. Browser extension companion
 
@@ -94,7 +94,7 @@ Ship a minimal Manifest V3 extension (Chrome/Edge) in `windows/browser-extension
 ## 6. Reporting & HA connection
 
 - Single persistent WebSocket to HA (see §8 for the protocol). Reconnect with exponential backoff (5 s → 5 min cap, jittered).
-- On (re)connect: fetch all states is **not** needed; instead call `gnomon.get_rules` if cached version ≠ current `sensor.gnomon_rules_version` (fetch that entity via `get_states` once), then `subscribe_events` for `state_changed` of `sensor.gnomon_rules_version`.
+- On (re)connect: fetch `gnomon.get_rules` and `gnomon.get_status`, then subscribe to `gnomon_changed`. This is independent of editable HA entity IDs.
 - Report minute deltas via `call_service` → `gnomon.report_usage`. Queue deltas in memory while disconnected (cap 720 min); on reconnect, flush in order.
 - Heartbeat: `gnomon.heartbeat` every 5 min and on reconnect.
 - Rules map cache: persist to `%ProgramData%\Gnomon\rules-cache.json`; agent is fully functional offline with a stale map.
@@ -105,9 +105,10 @@ Ship a minimal Manifest V3 extension (Chrome/Edge) in `windows/browser-extension
 WinForms tray UI hosted in the session worker (§2):
 
 - Tray icon tooltip: `Games 47/90 min · Video 12/30 min`
-- Window (open from tray): table of categories with used/limit/remaining, current foreground app and its live classification, extension status, HA connection status, and a read-only view of the local unclassified list ("these currently count as unclassified")
-- Data source: local state only — the UI must not add load to HA
-- The elevated configuration window exposes an admin-only **Classifications** workbench. It fetches HA's per-item ledger on demand, supports search and app/site filtering, shows minutes, and writes kid-specific bucket changes back to HA. It is not available from the unelevated kid-visible window.
+- Window (open from tray): prominent overall time left (the tighter of child-wide and this-PC allowances), category cards with remaining time, current app/classification, and HA connection state
+- Data source: the stable aggregate HA states already received by the agent; opening the UI makes no additional request
+- Category limits are independent budgets. Child-wide and device-wide overall limits are separate; the displayed overall remainder is whichever active allowance has less time left.
+- The elevated configuration window exposes an admin-only **Classifications** workbench. It reads this PC's local catalog, supports search and app/site filtering, shows local minutes, and writes only the selected kid-specific rule to HA.
 - **No hidden mode.** The app is visible by design; do not implement stealth options.
 
 ## 8. Shared protocol reference (binding)
@@ -116,12 +117,7 @@ WinForms tray UI hosted in the session worker (§2):
 - **Report usage:**
 ```json
 {"id":1,"type":"call_service","domain":"gnomon","service":"report_usage",
- "service_data":{"kid":"alex","device":"pc","category":"games","minutes":3,"app_id":"fortniteclient-win64-shipping.exe","kind":"process","app_label":"Fortnite"}}
-```
-- **Report unknown:**
-```json
-{"id":2,"type":"call_service","domain":"gnomon","service":"report_unknown",
- "service_data":{"kid":"alex","device":"pc","kind":"process","id":"newgame.exe","hint":"New Game by Studio"}}
+ "service_data":{"kid":"alex","device":"pc","category":"games","minutes":3}}
 ```
 - **Get rules (needs response):**
 ```json
@@ -136,8 +132,8 @@ Response schema:
  "overrides":{"alex":{"processes":{},"domains":{"khanacademy.org":"schoolwork"}}}}
 ```
 - **Heartbeat:** `gnomon.heartbeat` with `{kid, device, agent_version}`.
-- **Admin classifications:** `gnomon.get_classifications` and `gnomon.set_classification`, both response-bearing; assignments bump the HA rules version and flow back through normal invalidation.
-- **Invalidate:** `subscribe_events` on `state_changed`; client-filter `entity_id == "sensor.gnomon_rules_version"`; on change → refetch rules.
+- **Admin classifications:** the device builds its own list and calls response-bearing `gnomon.set_classification`; assignments bump the HA rules version and flow back through normal invalidation.
+- **Invalidate:** subscribe to `gnomon_changed`; `kind=rules` refetches rules and `kind=status` refetches aggregate allowances.
 - Deltas are integer minutes; the integration owns all accumulation. Never send cumulative totals.
 
 ## 9. Error handling & edge cases
@@ -154,7 +150,7 @@ Response schema:
 1. Foreground changes are event-driven (verify: <1% CPU idle, no polling)
 2. Fortnite lobby with no input for 3 min stops counting; a foreground player with an active audio session keeps counting when its category enables media activity; both verifiable in logs
 3. `youtube.com` in Edge bills `video`; `docs.google.com` bills `schoolwork`; killing the extension bills the browser as `unclassified` within 60 s
-4. Unknown exe appears once in HA triage, with file-description hint
+4. Unknown exe appears only in this PC's admin workbench; no HA entity is created
 5. Kill network for 10 min with active usage → deltas queued and flushed on restore; no loss, no duplication
 6. Rules edited in HA → agent picks up new map within ~5 s without restart
 7. Full day soak: HA totals within ±2 min of a manual stopwatch log
