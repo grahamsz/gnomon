@@ -17,6 +17,7 @@ public sealed class ConfigurationWindow : System.Windows.Forms.Form
     private readonly System.Windows.Forms.Button _save = new();
     private readonly System.Windows.Forms.Button _cancel = new();
     private readonly System.Windows.Forms.Button _browserSetup = new();
+    private readonly System.Windows.Forms.Button _classifications = new();
 
     public ConfigurationWindow(AgentPaths paths, AgentConfig config)
     {
@@ -121,11 +122,16 @@ public sealed class ConfigurationWindow : System.Windows.Forms.Form
         _cancel.AutoSize = true;
         _cancel.Padding = new System.Windows.Forms.Padding(10, 5, 10, 5);
         _cancel.Click += (_, _) => Close();
-        _browserSetup.Text = "Set up Chrome…";
+        _browserSetup.Text = "Chrome…";
         _browserSetup.AutoSize = true;
         _browserSetup.Padding = new System.Windows.Forms.Padding(10, 5, 10, 5);
         _browserSetup.Click += (_, _) => new BrowserSetupWindow().ShowDialog(this);
+        _classifications.Text = "Classifications…";
+        _classifications.AutoSize = true;
+        _classifications.Padding = new System.Windows.Forms.Padding(10, 5, 10, 5);
+        _classifications.Click += OpenClassifications;
         buttons.Controls.Add(_save);
+        buttons.Controls.Add(_classifications);
         buttons.Controls.Add(_browserSetup);
         buttons.Controls.Add(_cancel);
         root.Controls.Add(buttons);
@@ -133,6 +139,20 @@ public sealed class ConfigurationWindow : System.Windows.Forms.Form
         AcceptButton = _save;
         CancelButton = _cancel;
         Controls.Add(root);
+    }
+
+    private void OpenClassifications(object? sender, EventArgs e)
+    {
+        if (!AgentConfiguration.TryNormalizeHomeAssistantUrl(_haAddress.Text, out var haUrl) ||
+            string.IsNullOrWhiteSpace(_token.Text) || string.IsNullOrWhiteSpace(_kid.Text))
+        {
+            ShowError("Home Assistant address, token, and Kid ID are required to manage classifications.");
+            return;
+        }
+        var config = new AgentConfig(
+            haUrl, _token.Text.Trim(), _kid.Text.Trim(), _device.Text.Trim(),
+            _windowsUser.Text.Trim(), 45981);
+        new ClassificationWindow(config).ShowDialog(this);
     }
 
     private static System.Windows.Forms.Control Field(

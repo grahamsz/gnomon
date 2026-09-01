@@ -75,6 +75,7 @@ Single-activity Compose app:
 - **Now:** current foreground app, its category, whether it's counting, and why ("screen on, foreground")
 - **Unclassified:** the local list of apps currently billing to `unclassified`, with their app labels — the kid can see exactly what's unmapped
 - **Status:** HA connection, permission health, rules version, pending-queue depth
+- **Admin:** parent-PIN-gated connection settings and a usage-ranked classification workbench. The PIN is stored only as a salted PBKDF2 hash in private app storage; leaving the app re-locks the controls.
 - Persistent notification: compact per-category summary (`Games 47/90 · Video 12/30`)
 - No stealth mode, no disguised icon, no hidden reporting. Do not add any.
 
@@ -84,7 +85,7 @@ Single-activity Compose app:
 - **Report usage:**
 ```json
 {"id":1,"type":"call_service","domain":"gnomon","service":"report_usage",
- "service_data":{"kid":"alex","device":"phone","category":"games","minutes":2,"app_id":"com.supercell.brawlstars"}}
+ "service_data":{"kid":"alex","device":"phone","category":"games","minutes":2,"app_id":"com.supercell.brawlstars","kind":"process","app_label":"Brawl Stars"}}
 ```
 - **Report unknown:**
 ```json
@@ -104,6 +105,7 @@ Response schema:
  "overrides":{"alex":{"processes":{},"domains":{}}}}
 ```
 - **Heartbeat:** `gnomon.heartbeat` with `{kid, device, agent_version}`.
+- **Admin classifications:** response-bearing REST calls to `gnomon.get_classifications` and `gnomon.set_classification`; HA persists assignments and rules-version invalidation synchronizes them to all agents.
 - **Invalidate:** `subscribe_events` on `state_changed`; client-filter `entity_id == "sensor.gnomon_rules_version"`; on change → refetch rules.
 - Deltas are integer minutes; the integration owns all accumulation. Never send cumulative totals. All timestamps UTC; no local midnight logic — reset is HA's job.
 

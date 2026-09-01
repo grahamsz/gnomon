@@ -12,6 +12,7 @@ public class ProtocolCodecTests
         Assert.Equal("call_service", json["type"]!.GetValue<string>());
         Assert.Equal("report_usage", json["service"]!.GetValue<string>());
         Assert.Equal(3, json["service_data"]!["minutes"]!.GetValue<int>());
+        Assert.Equal("process", json["service_data"]!["kind"]!.GetValue<string>());
     }
 
     [Fact]
@@ -19,5 +20,15 @@ public class ProtocolCodecTests
     {
         var fixture = JsonNode.Parse("""{"event":{"data":{"entity_id":"sensor.gnomon_rules_version"}}}""")!;
         Assert.True(ProtocolCodec.IsRulesVersionEvent(fixture));
+    }
+
+    [Fact]
+    public void ClassificationAssignmentUsesResponseContract()
+    {
+        var json = JsonNode.Parse(ProtocolCodec.SetClassification(
+            4, "alex", "domain", "example.com", "schoolwork"))!;
+        Assert.Equal("set_classification", json["service"]!.GetValue<string>());
+        Assert.True(json["return_response"]!.GetValue<bool>());
+        Assert.Equal("example.com", json["service_data"]!["id"]!.GetValue<string>());
     }
 }

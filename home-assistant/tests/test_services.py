@@ -58,3 +58,35 @@ async def test_reset_and_rules_response(hass: HomeAssistant):
     response = await hass.services.async_call(DOMAIN, "get_rules", {}, blocking=True, return_response=True)
     assert response["version"] >= 1
     assert any(item["id"] == "unclassified" for item in response["categories"])
+
+
+async def test_classification_catalog_tracks_minutes_and_syncs_assignment(hass: HomeAssistant):
+    coordinator = await _setup(hass)
+    await hass.services.async_call(DOMAIN, "report_unknown", {
+        "kid": "alex", "device": "pc", "kind": "domain",
+        "id": "news.example.com", "hint": "Example News",
+    }, blocking=True)
+    await hass.services.async_call(DOMAIN, "report_usage", {
+        "kid": "alex", "device": "pc", "category": "unclassified", "minutes": 7,
+        "app_id": "news.example.com", "kind": "domain", "app_label": "Example News",
+    }, blocking=True)
+
+    catalog = await hass.services.async_call(
+        DOMAIN, "get_classifications", {"kid": "alex"},
+        blocking=True, return_response=True,
+    )
+    assert catalog["items"][0] == {
+        "kind": "domain", "id": "news.example.com", "label": "Example News",
+        "category": "unclassified", "minutes": 7, "devices": ["pc"],
+        "last_seen": catalog["items"][0]["last_seen"], "unclassified": True,
+    }
+
+    version = coordinator.rules.version
+    updated = await hass.services.async_call(DOMAIN, "set_classification", {
+        "kid": "alex", "kind": "domain", "id": "news.example.com",
+        "category": "schoolwork",
+    }, blocking=True, return_response=True)
+    assert updated["version"] == version + 1
+    assert updated["items"][0]["category"] == "schoolwork"
+    assert coordinator.rules.overrides["alex"]["domains"]["news.example.com"] == "schoolwork"
+    assert "alex|domain|news.example.com" not in coordinator.unknowns

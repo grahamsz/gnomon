@@ -117,12 +117,10 @@ jobs:
           cp -R custom_components/gnomon/. "$stage/"
           jq --arg version "$PACKAGE_VERSION" '.version = $version' "$stage/manifest.json" > "$stage/manifest.tmp"
           mv "$stage/manifest.tmp" "$stage/manifest.json"
-          if [[ "$CHANNEL" == "production" ]]; then
-            asset="gnomon.zip"
-          else
-            asset="Gnomon-${ASSET_SUFFIX}-home-assistant.zip"
+          (cd "$stage" && zip -qr "$GITHUB_WORKSPACE/dist/gnomon.zip" .)
+          if [[ "$CHANNEL" != "production" ]]; then
+            cp dist/gnomon.zip "dist/Gnomon-${ASSET_SUFFIX}-home-assistant.zip"
           fi
-          (cd "$stage" && zip -qr "$GITHUB_WORKSPACE/dist/$asset" .)
       - uses: actions/upload-artifact@v4
         with:
           name: home-assistant-package

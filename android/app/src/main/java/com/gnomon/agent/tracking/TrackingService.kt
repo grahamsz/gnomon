@@ -20,6 +20,7 @@ class TrackingService : Service() {
     private lateinit var client: HaClient
     private val classifier = Classifier(); private val quantizer = DeltaQuantizer(); private val unknowns = UnknownReportCache()
     private var config = AgentConfig(); private var currentPackage: String? = null; private var currentCategory = "unclassified"
+    private var currentLabel = ""
     private var lastQuery = System.currentTimeMillis(); private var lastTick = lastQuery; private var screenOn = true
     private var lastTotalsRefresh = 0L
     private val screenReceiver = object : BroadcastReceiver() {
@@ -56,9 +57,11 @@ class TrackingService : Service() {
                 next?.let { packageName ->
                     val classification = classifier.classify(packageName, config.kid, client.rules.value)
                     currentCategory = classification.category
-                    quantizer.accumulate(classification.category, now - lastTick)
-                    if (quantizer.remainderMillis(classification.category) >= 60_000L) flush()
+                    val usageKey = "process:$packageName"
+                    quantizer.accumulate(usageKey, now - lastTick)
+                    if (quantizer.remainderMillis(usageKey) >= 60_000L) flush()
                     val label = appLabel(packageName)
+                    currentLabel = label
                     if (classification.unknown && unknowns.shouldReport("process", packageName, classification.rulesVersion)) {
                         if (!client.reportUnknown(packageName, label)) unknowns.retainVersion(-1)
                     }
@@ -94,11 +97,15 @@ class TrackingService : Service() {
     }
 
     private suspend fun flush() {
-        val packageName = currentPackage ?: return; val minutes = quantizer.flush(currentCategory)
+        val packageName = currentPackage ?: return
+        val minutes = quantizer.flush("process:$packageName")
         var remaining = minutes
         while (remaining > 0) {
             val chunk = minOf(30, remaining)
-            app.repository.enqueue(config.kid, config.device, currentCategory, chunk, packageName); remaining -= chunk
+            app.repository.enqueue(
+                config.kid, config.device, currentCategory, chunk, packageName,
+                kind = "process", appLabel = currentLabel
+            ); remaining -= chunk
         }
         if (minutes > 0) client.notifyQueueChanged()
     }

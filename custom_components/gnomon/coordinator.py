@@ -18,7 +18,7 @@ from .const import (
     SIGNAL_STATE_CHANGED, SIGNAL_UNKNOWN_REMOVED, STORAGE_KEY, STORAGE_VERSION,
     UNCLASSIFIED, UNKNOWN_NOTIFICATION_HOURS,
 )
-from .models import Category, Kid, RulesMap, UnknownItem, utc_now_iso
+from .models import Category, Kid, RulesMap, UnknownItem, UsageItem, utc_now_iso
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -35,6 +35,7 @@ class GnomonCoordinator:
         self.usage: dict[str, dict[str, dict[str, int]]] = {}
         self.devices: dict[str, set[str]] = {}
         self.unknowns: dict[str, UnknownItem] = {}
+        self.usage_items: dict[str, UsageItem] = {}
         self.agent_versions: dict[tuple[str, str], str] = {}
         self.agent_online: set[tuple[str, str]] = set()
         self._agent_timers: dict[tuple[str, str], Any] = {}
@@ -55,6 +56,10 @@ class GnomonCoordinator:
             self.usage = stored.get("usage", {})
             self.devices = {k: set(v) for k, v in stored.get("devices", {}).items()}
             self.unknowns = {k: UnknownItem.from_dict(v) for k, v in stored.get("unknowns", {}).items()}
+            self.usage_items = {
+                key: UsageItem.from_dict(value)
+                for key, value in stored.get("usage_items", {}).items()
+            }
         else:
             self.rules = RulesMap(
                 categories={item["id"]: Category.from_dict(item) for item in DEFAULT_CATEGORIES},
@@ -89,6 +94,7 @@ class GnomonCoordinator:
             "limits": self.limits, "usage": self.usage,
             "devices": {k: sorted(v) for k, v in self.devices.items()},
             "unknowns": {k: asdict(v) for k, v in self.unknowns.items()},
+            "usage_items": {k: asdict(v) for k, v in self.usage_items.items()},
         })
 
     def total(self, kid: str, category: str) -> int:
@@ -99,7 +105,8 @@ class GnomonCoordinator:
         return limit > 0 and self.total(kid, category) >= limit
 
     async def async_report_usage(
-        self, kid: str, device: str, category: str, minutes: int, app_id: str = ""
+        self, kid: str, device: str, category: str, minutes: int, app_id: str = "",
+        kind: str = "process", app_label: str = "",
     ) -> None:
         if kid not in self.kids:
             _LOGGER.error("Ignoring usage for unknown kid %s", kid)
@@ -115,11 +122,25 @@ class GnomonCoordinator:
         self.devices[kid].add(device)
         device_usage = self.usage[kid].setdefault(device, {})
         device_usage[category] = device_usage.get(category, 0) + clamped
+        app_id = app_id.lower().strip()
+        if app_id:
+            key = f"{kid}|{kind}|{app_id}"
+            item = self.usage_items.get(key)
+            if item is None:
+                item = UsageItem(kind=kind, id=app_id, kid=kid)
+                self.usage_items[key] = item
+            item.minutes += clamped
+            item.last_category = category
+            item.last_seen = utc_now_iso()
+            if app_label.strip():
+                item.label = app_label.strip()[:120]
+            if device not in item.devices:
+                item.devices.append(device)
         if category == UNCLASSIFIED and app_id:
-            for item in self.unknowns.values():
-                if item.kid == kid and item.id == app_id.lower():
-                    item.minutes_seen += clamped
-                    item.last_seen = utc_now_iso()
+            unknown = self.unknowns.get(f"{kid}|{kind}|{app_id}")
+            if unknown:
+                unknown.minutes_seen += clamped
+                unknown.last_seen = utc_now_iso()
         await self.async_heartbeat(kid, device, "")
         await self.async_save()
         async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
@@ -149,6 +170,17 @@ class GnomonCoordinator:
                 "kid": kid, "device": device, "kind": kind, "id": item_id, "hint": hint[:120]
             })
             async_dispatcher_send(self.hass, f"{SIGNAL_STATE_CHANGED}_entities")
+        usage_item = self.usage_items.get(key)
+        if usage_item is None:
+            self.usage_items[key] = UsageItem(
+                kind=kind, id=item_id, kid=kid, label=hint[:120], devices=[device]
+            )
+        else:
+            usage_item.last_seen = utc_now_iso()
+            if hint.strip():
+                usage_item.label = hint.strip()[:120]
+            if device not in usage_item.devices:
+                usage_item.devices.append(device)
         await self.async_save()
         async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
         self._arm_unknown_notification()
@@ -162,6 +194,69 @@ class GnomonCoordinator:
         del self.unknowns[key]
         await self.async_rules_mutated()
         async_dispatcher_send(self.hass, SIGNAL_UNKNOWN_REMOVED, key)
+
+    def classification_category(self, kid: str, kind: str, item_id: str) -> str:
+        """Resolve the current category with the same precedence agents use."""
+        plural = "processes" if kind == "process" else "domains"
+        override = self.rules.overrides.get(kid, {}).get(plural, {})
+        global_rules = self.rules.processes if kind == "process" else self.rules.domains
+        if kind == "process":
+            return override.get(item_id, global_rules.get(item_id, UNCLASSIFIED))
+        candidates = {**global_rules, **override}
+        matches = [
+            (base, value) for base, value in candidates.items()
+            if item_id == base or item_id.endswith(f".{base}")
+        ]
+        return max(matches, key=lambda value: len(value[0]))[1] if matches else UNCLASSIFIED
+
+    def classification_catalog(self, kid: str) -> dict[str, Any]:
+        """Return a usage-ranked catalog suitable for agent admin interfaces."""
+        items: dict[str, dict[str, Any]] = {}
+        for key, value in self.usage_items.items():
+            if value.kid != kid:
+                continue
+            items[key] = {
+                "kind": value.kind, "id": value.id,
+                "label": value.label or value.id,
+                "category": self.classification_category(kid, value.kind, value.id),
+                "minutes": value.minutes, "devices": sorted(value.devices),
+                "last_seen": value.last_seen,
+                "unclassified": key in self.unknowns,
+            }
+        for key, value in self.unknowns.items():
+            if value.kid == kid and key not in items:
+                items[key] = {
+                    "kind": value.kind, "id": value.id,
+                    "label": value.hint or value.id, "category": UNCLASSIFIED,
+                    "minutes": value.minutes_seen, "devices": [value.device],
+                    "last_seen": value.last_seen, "unclassified": True,
+                }
+        return {
+            "version": self.rules.version,
+            "categories": [
+                {"id": value.id, "name": value.name}
+                for value in self.rules.categories.values()
+            ],
+            "items": sorted(
+                items.values(), key=lambda value: (-value["minutes"], value["label"].lower())
+            ),
+        }
+
+    async def async_set_classification(
+        self, kid: str, kind: str, item_id: str, category: str
+    ) -> dict[str, Any]:
+        """Set a kid-specific mapping and return the refreshed catalog."""
+        if kid not in self.kids or category not in self.rules.categories:
+            return self.classification_catalog(kid)
+        item_id = item_id.lower().strip()
+        override = self.rules.overrides.setdefault(
+            kid, {"processes": {}, "domains": {}}
+        )
+        override.setdefault("processes", {})
+        override.setdefault("domains", {})
+        override["processes" if kind == "process" else "domains"][item_id] = category
+        await self.async_rules_mutated()
+        return self.classification_catalog(kid)
 
     async def async_rules_mutated(self) -> None:
         self.rules.version += 1
@@ -200,6 +295,12 @@ class GnomonCoordinator:
         for values in self.usage[kid].values():
             for category_id in categories:
                 values[category_id] = 0
+        for item in self.usage_items.values():
+            if item.kid == kid and (
+                category is None
+                or self.classification_category(kid, item.kind, item.id) == category
+            ):
+                item.minutes = 0
         await self.async_save()
         async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
         self.hass.bus.async_fire("gnomon_reset", {"kid": kid, "category": category})

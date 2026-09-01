@@ -20,11 +20,17 @@ class Repository(private val db: GnomonDatabase) {
     suspend fun pendingCount() = dao.pendingCount()
     suspend fun deletePending(id: Long) = dao.delete(id)
 
-    suspend fun enqueue(kid: String, device: String, category: String, minutes: Int, appId: String) {
+    suspend fun enqueue(
+        kid: String, device: String, category: String, minutes: Int, appId: String,
+        kind: String = "process", appLabel: String = ""
+    ) {
         db.withTransaction {
             val overflow = QueueCapPolicy.rowsToDrop(dao.pendingCount())
             if (overflow > 0) { dao.deleteOldest(overflow); queueOverflowed = true }
-            dao.insert(PendingDeltaEntity(kid = kid, device = device, category = category, minutes = minutes, appId = appId))
+            dao.insert(PendingDeltaEntity(
+                kid = kid, device = device, category = category, minutes = minutes,
+                appId = appId, kind = kind, appLabel = appLabel
+            ))
         }
     }
 }

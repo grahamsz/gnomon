@@ -47,7 +47,31 @@ public sealed record Classification(
     bool IsUnknown,
     int RulesVersion);
 
-public sealed record UsageDelta(string Kid, string Device, string Category, int Minutes, string AppId);
+public sealed record UsageDelta(
+    string Kid,
+    string Device,
+    string Category,
+    int Minutes,
+    string AppId,
+    ClassificationKind Kind = ClassificationKind.Process,
+    string AppLabel = "");
+
+public sealed record ClassificationCategory(string Id, string Name);
+
+public sealed record ClassificationItem(
+    string Kind,
+    string Id,
+    string Label,
+    string Category,
+    int Minutes,
+    IReadOnlyList<string> Devices,
+    [property: JsonPropertyName("last_seen")] string LastSeen,
+    bool Unclassified);
+
+public sealed record ClassificationCatalog(
+    int Version,
+    IReadOnlyList<ClassificationCategory> Categories,
+    IReadOnlyList<ClassificationItem> Items);
 
 public sealed record ActivitySnapshot(
     bool ForegroundMapped,

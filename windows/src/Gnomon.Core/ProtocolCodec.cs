@@ -28,7 +28,9 @@ public static class ProtocolCodec
     public static string ReportUsage(int id, UsageDelta delta) => CallService(id, "report_usage", new
     {
         kid = delta.Kid, device = delta.Device, category = delta.Category,
-        minutes = delta.Minutes, app_id = delta.AppId
+        minutes = delta.Minutes, app_id = delta.AppId,
+        kind = delta.Kind == ClassificationKind.Process ? "process" : "domain",
+        app_label = delta.AppLabel
     });
 
     public static string ReportUnknown(
@@ -44,6 +46,13 @@ public static class ProtocolCodec
         CallService(id, "heartbeat", new { kid, device, agent_version = version });
 
     public static string GetRules(int id) => CallService(id, "get_rules", new { }, true);
+
+    public static string GetClassifications(int id, string kid) =>
+        CallService(id, "get_classifications", new { kid }, true);
+
+    public static string SetClassification(
+        int id, string kid, string kind, string itemId, string category) =>
+        CallService(id, "set_classification", new { kid, kind, id = itemId, category }, true);
 
     public static string GetStates(int id) => JsonSerializer.Serialize(new { id, type = "get_states" }, JsonOptions);
 

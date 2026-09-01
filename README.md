@@ -5,6 +5,11 @@ the source of truth; visible Windows and Android agents classify foreground use
 and report integer-minute deltas. The 0.1 series deliberately contains no blocking,
 locking, overlays, stealth mode, or process control.
 
+Parents can classify usage from either agent: Windows exposes an elevated
+classification workbench in **Configure**, while Android keeps connection and
+classification controls behind a local parent PIN. Both write kid-specific rules
+to Home Assistant, which synchronizes them to every connected agent.
+
 ## Repository layout
 
 - `custom_components/gnomon/` — HACS-compliant Home Assistant integration source
@@ -32,7 +37,7 @@ not committed into the source tree:
 - [Windows portable ZIP](https://github.com/grahamsz/gnomon/releases/download/dev/GnomonAgent-dev-win-x64.zip)
 - [Android APK](https://github.com/grahamsz/gnomon/releases/download/dev/Gnomon-dev-android.apk)
 - [Browser companion](https://github.com/grahamsz/gnomon/releases/download/dev/GnomonBrowserCompanion-dev.zip)
-- [Home Assistant package](https://github.com/grahamsz/gnomon/releases/download/dev/Gnomon-dev-home-assistant.zip)
+- [Home Assistant package (`gnomon.zip` for HACS)](https://github.com/grahamsz/gnomon/releases/download/dev/gnomon.zip)
 
 See [all releases](https://github.com/grahamsz/gnomon/releases) for immutable
 production versions after the first `vX.Y.Z` tag is published.

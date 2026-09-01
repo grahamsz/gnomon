@@ -97,8 +97,10 @@ device: string (required)
 category: string (required, must exist; unknown category → log warning, bill to "unclassified")
 minutes: int (required, 1–30; delta since last report)
 app_id: string (optional, process name or domain, for diagnostics)
+kind: string (optional, "process" | "domain"; defaults to "process")
+app_label: string (optional, human-readable app name)
 ```
-No response. Increments `sensor.gnomon_used_{kid}_{device}_{category}`, recomputes totals and exhausted flags, refreshes agent-connected state. When usage crosses the limit (exhausted transitions off→on), fire event `gnomon_limit_reached` with `{kid, category, limit, used}` — parents wire notifications to this in 0.1.
+No response. Increments `sensor.gnomon_used_{kid}_{device}_{category}`, the persisted per-item usage ledger, totals, and exhausted flags, then refreshes agent-connected state. When usage crosses the limit (exhausted transitions off→on), fire event `gnomon_limit_reached` with `{kid, category, limit, used}` — parents wire notifications to this in 0.1.
 
 ### `gnomon.report_unknown`
 ```yaml
@@ -132,6 +134,10 @@ agent_version: string (optional)
 ```
 No response. Marks `binary_sensor.gnomon_agent_{kid}_{device}` on and (re)arms the 15-minute staleness timer.
 
+### `gnomon.get_classifications` / `gnomon.set_classification`
+
+Both support responses. `get_classifications` accepts `{kid}` and returns categories plus a usage-ranked list of apps and domains with label, current category, minutes, devices, and last-seen time. `set_classification` accepts `{kid, kind, id, category}`, writes a kid-specific override, bumps the rules version, resolves the corresponding unknown item, and returns the refreshed catalog. Agent admin interfaces use these services as their shared classification workbench API.
+
 ### `gnomon.reset`
 ```yaml
 kid: string (required)
@@ -155,6 +161,7 @@ The options flow provides structural editing (rare operations):
 - **Categories:** add/rename/remove (removing a category with usage refuses with an error; removing requires no active mappings)
 - **Limits:** editable here too, but the primary surface is the `number` entities
 - **Rules:** list/add/remove process and domain mappings, global and per-kid override; validate category references; lowercase everything
+- **Agent workbenches:** Windows and Android edit kid-specific mappings through the authenticated classification services; HA remains the source of truth
 - Every mutation: `version += 1`, persist, update `sensor.gnomon_rules_version`, auto-resolve any unknowns now covered
 
 Seed data: ship a built-in seed map (constant, ~40 entries) covering common games (`robloxplayerbeta.exe`, `javaw.exe`, `fortniteclient-win64-shipping.exe`, `minecraft*.exe`…), office apps (`winword.exe`, `excel.exe`, `powerpnt.exe` → `schoolwork`), and major domains (`youtube.com`, `netflix.com`, `tiktok.com`, `discord.com`, `roblox.com`, `classroom.google.com`, `docs.google.com`…). Applied on first setup only.
@@ -173,7 +180,7 @@ Seed data: ship a built-in seed map (constant, ~40 entries) covering common game
 - **Report:** `{"id":N,"type":"call_service","domain":"gnomon","service":"report_usage","service_data":{...}}`
 - **Fetch rules:** `call_service` on `gnomon.get_rules` with `"return_response": true`; cache the response keyed by `version`.
 - **Invalidate:** `{"id":N,"type":"subscribe_events","event_type":"state_changed"}` filtered client-side to `sensor.gnomon_rules_version`; on change → refetch rules.
-- **Fire-and-forget fallback (REST):** `POST /api/services/gnomon/report_usage` etc. with `Authorization: Bearer` header. No service responses over REST — agents needing `get_rules` must use WS.
+- **REST:** `POST /api/services/gnomon/{service}?return_response` with `Authorization: Bearer` supports the Android admin workbench; tracking continues to use WebSocket.
 - Agents send integer minute **deltas**, not cumulative totals. Integration owns all accumulation.
 
 ## 9. Error handling & edge cases

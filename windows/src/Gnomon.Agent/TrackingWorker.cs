@@ -17,6 +17,7 @@ public sealed class TrackingWorker
     private readonly HashSet<string> _localUnknowns = new(StringComparer.OrdinalIgnoreCase);
     private string _lastApp = "";
     private Classification? _lastClassification;
+    private string _lastHint = "";
     private DateTimeOffset _lastTick = DateTimeOffset.UtcNow;
     private DateTimeOffset _lastMediaProbe = DateTimeOffset.MinValue;
     private bool _mediaPlaying;
@@ -45,7 +46,7 @@ public sealed class TrackingWorker
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
         finally
         {
-            Flush(_lastClassification);
+            Flush(_lastClassification, _lastHint);
             await _extension.StopAsync();
             try { await haTask; } catch (OperationCanceledException) { }
         }
@@ -59,9 +60,10 @@ public sealed class TrackingWorker
             foreground.ProcessName, _config.Kid, _extension.CurrentDomain, _extension.LastSeen, now, _ha.Rules);
 
         if (_lastApp.Length > 0 && !string.Equals(_lastApp, classification.AppId, StringComparison.OrdinalIgnoreCase))
-            Flush(_lastClassification);
+            Flush(_lastClassification, _lastHint);
         _lastApp = classification.AppId;
         _lastClassification = classification;
+        _lastHint = classification.Kind == ClassificationKind.Domain ? classification.AppId : foreground.Hint;
 
         var rule = _ha.Rules.Categories.FirstOrDefault(x => x.Id.Equals(classification.Category, StringComparison.OrdinalIgnoreCase))
                    ?? new CategoryRule("unclassified", "Unclassified");
@@ -73,10 +75,11 @@ public sealed class TrackingWorker
         var idle = _probes.IsInputIdle(TimeSpan.FromMinutes(rule.IdleTimeoutMinutes));
         var counting = ActivityStateMachine.IsCounting(new(
             true, _probes.SessionActive, idle, _mediaPlaying, rule.MediaCountsAsActive));
-        if (counting) _quantizer.Accumulate(classification.Category, now - _lastTick);
+        var usageKey = $"{classification.Kind}:{classification.AppId}";
+        if (counting) _quantizer.Accumulate(usageKey, now - _lastTick);
         _lastTick = now;
 
-        if (_quantizer.RemainderSeconds(classification.Category) >= 60) Flush(classification);
+        if (_quantizer.RemainderSeconds(usageKey) >= 60) Flush(classification, _lastHint);
         if (classification.IsUnknown)
         {
             _localUnknowns.Add(classification.AppId);
@@ -94,13 +97,16 @@ public sealed class TrackingWorker
         });
     }
 
-    private void Flush(Classification? classification)
+    private void Flush(Classification? classification, string hint)
     {
         if (classification is null) return;
-        var minutes = _quantizer.FlushWholeMinutes(classification.Category);
+        var usageKey = $"{classification.Kind}:{classification.AppId}";
+        var minutes = _quantizer.FlushWholeMinutes(usageKey);
         if (minutes <= 0) return;
         foreach (var chunk in Chunk(minutes, 30))
-            _ha.Queue(new(_config.Kid, _config.Device, classification.Category, chunk, classification.AppId));
+            _ha.Queue(new(
+                _config.Kid, _config.Device, classification.Category, chunk,
+                classification.AppId, classification.Kind, hint));
         _status.AddUsage(classification.Category, minutes);
         Log.Information("Usage delta: {Category} {Minutes} min ({App})", classification.Category, minutes, classification.AppId);
     }

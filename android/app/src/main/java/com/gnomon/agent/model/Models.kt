@@ -27,6 +27,25 @@ import kotlinx.serialization.Serializable
     val overrides: Map<String, RuleOverrides> = emptyMap()
 )
 
+@Serializable data class ClassificationCategory(val id: String, val name: String)
+
+@Serializable data class ClassificationItem(
+    val kind: String,
+    val id: String,
+    val label: String,
+    val category: String,
+    val minutes: Int,
+    val devices: List<String> = emptyList(),
+    @SerialName("last_seen") val lastSeen: String = "",
+    val unclassified: Boolean = false
+)
+
+@Serializable data class ClassificationCatalog(
+    val version: Int = 0,
+    val categories: List<ClassificationCategory> = emptyList(),
+    val items: List<ClassificationItem> = emptyList()
+)
+
 data class Classification(val category: String, val packageName: String, val unknown: Boolean, val rulesVersion: Int)
 
 data class TrackerStatus(

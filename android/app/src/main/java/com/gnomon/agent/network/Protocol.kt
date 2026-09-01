@@ -21,7 +21,8 @@ object Protocol {
     })
     fun usage(id: Int, value: PendingDeltaEntity) = call(id, "report_usage", buildJsonObject {
         put("kid", value.kid); put("device", value.device); put("category", value.category)
-        put("minutes", value.minutes); put("app_id", value.appId)
+        put("minutes", value.minutes); put("app_id", value.appId); put("kind", value.kind)
+        put("app_label", value.appLabel)
     })
     fun unknown(id: Int, config: AgentConfig, packageName: String, label: String) = call(id, "report_unknown", buildJsonObject {
         put("kid", config.kid); put("device", config.device); put("kind", "process")

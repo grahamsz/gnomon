@@ -7,6 +7,8 @@ report_usage:
     category: {required: true, selector: {text: {}}}
     minutes: {required: true, selector: {number: {min: 1, max: 30, mode: box}}}
     app_id: {required: false, selector: {text: {}}}
+    kind: {required: false, selector: {select: {options: [process, domain]}}}
+    app_label: {required: false, selector: {text: {}}}
 report_unknown:
   name: Report unknown
   description: Add or refresh an item in the classification inbox.
@@ -19,6 +21,19 @@ report_unknown:
 get_rules:
   name: Get rules
   description: Return the versioned classification map to an agent.
+get_classifications:
+  name: Get classifications
+  description: Return the usage-ranked app and website classification catalog for a kid.
+  fields:
+    kid: {required: true, selector: {text: {}}}
+set_classification:
+  name: Set classification
+  description: Assign an app or website to a kid-specific category and synchronize the rule to agents.
+  fields:
+    kid: {required: true, selector: {text: {}}}
+    kind: {required: true, selector: {select: {options: [process, domain]}}}
+    id: {required: true, selector: {text: {}}}
+    category: {required: true, selector: {text: {}}}
 heartbeat:
   name: Heartbeat
   description: Mark an agent as connected.

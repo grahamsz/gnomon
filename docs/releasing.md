@@ -71,8 +71,9 @@ third to 65535. The workflow validates this before building.
 ## Add Gnomon to HACS and Home Assistant
 
 The root-level `custom_components/gnomon` layout lets HACS install the default
-branch or a tagged release directly from GitHub. The separately attached
-`gnomon.zip` asset is only for manual installation outside HACS.
+branch or a tagged release directly from GitHub. Every published release,
+including the moving `dev` prerelease, also carries the canonical `gnomon.zip`
+asset expected by HACS and usable for manual installation.
 
 1. In HACS, open **Integrations**, choose the three-dot menu, then **Custom repositories**.
 2. Enter `https://github.com/grahamsz/gnomon`, select **Integration**, and add it.

@@ -32,6 +32,11 @@ Run `Gnomon.Agent.exe --configure` to open the guided setup window. A bare
 `homeassistant.local` address is normalized to
 `ws://homeassistant.local:8123/api/websocket`.
 
+Because configuration is elevated, its **Classifications** button is the Windows
+admin boundary. The workbench shows usage-ranked apps and websites with their
+minutes and lets the parent change a bucket; Home Assistant persists and syncs
+the resulting kid-specific rule.
+
 The MSI also installs the Chrome companion files under `Browser Companion`.
 Choose **Set up Chrome companion** from the Gnomon tray menu to open Chrome's
 extensions page and the exact folder to select with **Load unpacked**.

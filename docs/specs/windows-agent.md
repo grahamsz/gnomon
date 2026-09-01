@@ -107,6 +107,7 @@ WinForms tray UI hosted in the session worker (§2):
 - Tray icon tooltip: `Games 47/90 min · Video 12/30 min`
 - Window (open from tray): table of categories with used/limit/remaining, current foreground app and its live classification, extension status, HA connection status, and a read-only view of the local unclassified list ("these currently count as unclassified")
 - Data source: local state only — the UI must not add load to HA
+- The elevated configuration window exposes an admin-only **Classifications** workbench. It fetches HA's per-item ledger on demand, supports search and app/site filtering, shows minutes, and writes kid-specific bucket changes back to HA. It is not available from the unelevated kid-visible window.
 - **No hidden mode.** The app is visible by design; do not implement stealth options.
 
 ## 8. Shared protocol reference (binding)
@@ -115,7 +116,7 @@ WinForms tray UI hosted in the session worker (§2):
 - **Report usage:**
 ```json
 {"id":1,"type":"call_service","domain":"gnomon","service":"report_usage",
- "service_data":{"kid":"alex","device":"pc","category":"games","minutes":3,"app_id":"fortniteclient-win64-shipping.exe"}}
+ "service_data":{"kid":"alex","device":"pc","category":"games","minutes":3,"app_id":"fortniteclient-win64-shipping.exe","kind":"process","app_label":"Fortnite"}}
 ```
 - **Report unknown:**
 ```json
@@ -135,6 +136,7 @@ Response schema:
  "overrides":{"alex":{"processes":{},"domains":{"khanacademy.org":"schoolwork"}}}}
 ```
 - **Heartbeat:** `gnomon.heartbeat` with `{kid, device, agent_version}`.
+- **Admin classifications:** `gnomon.get_classifications` and `gnomon.set_classification`, both response-bearing; assignments bump the HA rules version and flow back through normal invalidation.
 - **Invalidate:** `subscribe_events` on `state_changed`; client-filter `entity_id == "sensor.gnomon_rules_version"`; on change → refetch rules.
 - Deltas are integer minutes; the integration owns all accumulation. Never send cumulative totals.
 
