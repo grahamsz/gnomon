@@ -3,7 +3,7 @@
   "config": {
     "step": {"user": {"title": "Create the first kid", "description": "Gnomon is visible, measurement-only screen time.", "data": {"kid_name": "Display name", "kid_id": "Kid ID"}}},
     "error": {"invalid_slug": "Enter a valid kid ID.", "duplicate_or_invalid": "That ID is invalid or already exists."},
-    "abort": {"already_configured": "Gnomon is already configured."}
+    "abort": {"already_configured": "Gnomon is already configured. To add another kid, open Settings → Devices & services → Gnomon → Configure → Add a kid."}
   },
   "options": {
     "step": {

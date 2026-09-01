@@ -22,6 +22,12 @@ class GnomonConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None):
+        # Gnomon is one hub with multiple kids. Stop before presenting the
+        # first-kid form again and direct the user to the existing entry's
+        # options flow, where additional kids belong.
+        if self._async_current_entries():
+            return self.async_abort(reason="already_configured")
+
         errors = {}
         if user_input is not None:
             kid_id = slugify(user_input["kid_id"])
